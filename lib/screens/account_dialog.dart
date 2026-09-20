@@ -403,6 +403,8 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           await _supabase.syncLocalRecords(
             StorageService.instance.getHighScore(),
             StorageService.instance.getBestRally(),
+            localLevel: StorageService.instance.getLevel(),
+            localCoins: StorageService.instance.getCoins(),
           );
         } catch (e) {
           debugPrint('Error syncing local records: $e');
@@ -500,6 +502,8 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           await _supabase.syncLocalRecords(
             StorageService.instance.getHighScore(),
             StorageService.instance.getBestRally(),
+            localLevel: StorageService.instance.getLevel(),
+            localCoins: StorageService.instance.getCoins(),
           );
         } catch (e) {
           debugPrint('Error syncing local records: $e');
@@ -1048,6 +1052,8 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     final bestRally = _myStats?.bestRally ?? StorageService.instance.getBestRally();
     final games = _myStats?.gamesPlayed ?? 0;
     final wins = _myStats?.wins ?? 0;
+    final level = _myStats?.level ?? StorageService.instance.getLevel();
+    final coins = _myStats?.coins ?? StorageService.instance.getCoins();
 
     return Column(
       children: [
@@ -1130,7 +1136,65 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           _supabase.currentUser?.email ?? StorageService.instance.getSavedEmail() ?? 'Active Player Profile',
           style: const TextStyle(color: Colors.white54, fontSize: 11),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
+
+        // Level & Coins Banner
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF10132B),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.5)),
+            boxShadow: const [
+              BoxShadow(color: Color(0x22FFD700), blurRadius: 10, spreadRadius: 1),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.bolt, color: Color(0xFF00FF88), size: 20),
+                  const SizedBox(width: 6),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'LEVEL',
+                        style: TextStyle(color: Colors.white60, fontSize: 9, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'LV. $level',
+                        style: const TextStyle(color: Color(0xFF00FF88), fontSize: 15, fontWeight: FontWeight.w900),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(width: 1, height: 26, color: Colors.white24),
+              Row(
+                children: [
+                  const Icon(Icons.monetization_on, color: Color(0xFFFFD700), size: 20),
+                  const SizedBox(width: 6),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'COINS',
+                        style: TextStyle(color: Colors.white60, fontSize: 9, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        '$coins 🪙',
+                        style: const TextStyle(color: Color(0xFFFFD700), fontSize: 15, fontWeight: FontWeight.w900),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
 
         // Stats Cards
         Row(
@@ -1201,13 +1265,23 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                   await _supabase.syncLocalRecords(
                     StorageService.instance.getHighScore(),
                     StorageService.instance.getBestRally(),
+                    localLevel: StorageService.instance.getLevel(),
+                    localCoins: StorageService.instance.getCoins(),
                   );
                   final s = await _supabase.fetchMyStats();
+                  if (s != null) {
+                    if (s.level > StorageService.instance.getLevel()) {
+                      await StorageService.instance.saveLevel(s.level);
+                    }
+                    if (s.coins > StorageService.instance.getCoins()) {
+                      await StorageService.instance.saveCoins(s.coins);
+                    }
+                  }
                   if (mounted) {
                     setState(() {
                       _myStats = s;
                       _isLoading = false;
-                      _successMessage = 'Stats synchronized';
+                      _successMessage = 'Stats & Progress synchronized!';
                     });
                   }
                 },
@@ -1357,6 +1431,23 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                       ),
                     ),
                     if (isVerified) UserUtils.verifiedBadge(size: 14),
+                    Container(
+                      margin: const EdgeInsets.only(left: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: const Color(0x2200FF88),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0x6600FF88)),
+                      ),
+                      child: Text(
+                        'LV.${item.level}',
+                        style: const TextStyle(
+                          color: Color(0xFF00FF88),
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

@@ -12,6 +12,8 @@ class PlayerStats {
   final int bestRally;
   final int gamesPlayed;
   final int wins;
+  final int level;
+  final int coins;
 
   PlayerStats({
     required this.username,
@@ -19,18 +21,25 @@ class PlayerStats {
     required this.bestRally,
     required this.gamesPlayed,
     required this.wins,
+    this.level = 1,
+    this.coins = 0,
   });
 
   int get losses => (gamesPlayed - wins).clamp(0, gamesPlayed);
   double get winRate => gamesPlayed > 0 ? (wins / gamesPlayed) * 100 : 0.0;
 
   factory PlayerStats.fromMap(Map<String, dynamic> map) {
+    final wins = (map['wins'] as num?)?.toInt() ?? 0;
+    final level = (map['level'] as num?)?.toInt() ?? (1 + wins);
+    final coins = (map['coins'] as num?)?.toInt() ?? (wins * 50);
     return PlayerStats(
       username: map['username'] as String? ?? 'Player',
       highScore: (map['high_score'] as num?)?.toInt() ?? 0,
       bestRally: (map['best_rally'] as num?)?.toInt() ?? 0,
       gamesPlayed: (map['games_played'] as num?)?.toInt() ?? 0,
-      wins: (map['wins'] as num?)?.toInt() ?? 0,
+      wins: wins,
+      level: level,
+      coins: coins,
     );
   }
 }
@@ -264,11 +273,13 @@ class SupabaseService {
     await StorageService.instance.logout();
   }
 
-  // Save game result and sync high scores
+  // Save game result and sync high scores, levels, and coins
   Future<void> saveGameResult({
     required bool won,
     required int score,
     required int rally,
+    int? level,
+    int? coins,
   }) async {
     final user = currentUser;
     if (user == null || client == null) return;
@@ -281,23 +292,35 @@ class SupabaseService {
       final newWins = (currentStats?.wins ?? 0) + (won ? 1 : 0);
       final newHighScore = [currentStats?.highScore ?? 0, score].reduce((a, b) => a > b ? a : b);
       final newBestRally = [currentStats?.bestRally ?? 0, rally].reduce((a, b) => a > b ? a : b);
+      final newLevel = level ?? (currentStats?.level ?? (1 + newWins));
+      final newCoins = coins ?? (currentStats?.coins ?? (newWins * 50));
 
-      await client!.from('game_stats').upsert({
+      final payload = {
         'user_id': userId,
         'username': currentUsername,
         'high_score': newHighScore,
         'best_rally': newBestRally,
         'games_played': newGamesPlayed,
         'wins': newWins,
+        'level': newLevel,
+        'coins': newCoins,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+      };
+
+      try {
+        await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+      } catch (_) {
+        payload.remove('level');
+        payload.remove('coins');
+        await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+      }
     } catch (e) {
       debugPrint('Error syncing game result to Supabase: $e');
     }
   }
 
   // Sync local records on login
-  Future<void> syncLocalRecords(int localHighScore, int localBestRally) async {
+  Future<void> syncLocalRecords(int localHighScore, int localBestRally, {int? localLevel, int? localCoins}) async {
     final user = currentUser;
     if (user == null || client == null) return;
 
@@ -305,16 +328,28 @@ class SupabaseService {
       final currentStats = await fetchMyStats();
       final mergedHighScore = [currentStats?.highScore ?? 0, localHighScore].reduce((a, b) => a > b ? a : b);
       final mergedBestRally = [currentStats?.bestRally ?? 0, localBestRally].reduce((a, b) => a > b ? a : b);
+      final mergedLevel = [currentStats?.level ?? 1, localLevel ?? 1].reduce((a, b) => a > b ? a : b);
+      final mergedCoins = [currentStats?.coins ?? 0, localCoins ?? 0].reduce((a, b) => a > b ? a : b);
 
-      await client!.from('game_stats').upsert({
+      final payload = {
         'user_id': user.id,
         'username': currentUsername,
         'high_score': mergedHighScore,
         'best_rally': mergedBestRally,
         'games_played': currentStats?.gamesPlayed ?? 0,
         'wins': currentStats?.wins ?? 0,
+        'level': mergedLevel,
+        'coins': mergedCoins,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+      };
+
+      try {
+        await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+      } catch (_) {
+        payload.remove('level');
+        payload.remove('coins');
+        await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+      }
     } catch (e) {
       debugPrint('Error syncing local records: $e');
     }

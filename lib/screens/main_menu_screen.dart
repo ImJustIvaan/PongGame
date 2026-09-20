@@ -348,15 +348,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                     SizedBox(height: (16 * scale).roundToDouble()),
 
                     // Stats summary
-                    if (highScore > 0 || bestRally > 0)
-                      Text(
-                        'HIGH SCORE: $highScore   •   BEST RALLY: $bestRally',
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: (12 * scale).roundToDouble(),
-                          letterSpacing: 1.5 * scale,
-                        ),
+                    Text(
+                      'LV. ${StorageService.instance.getLevel()}  •  ${StorageService.instance.getCoins()} COINS 🪙'
+                      '${highScore > 0 || bestRally > 0 ? "  •  BEST SCORE: $highScore  •  RALLY: $bestRally" : ""}',
+                      style: TextStyle(
+                        color: Colors.white60,
+                        fontSize: (12 * scale).roundToDouble(),
+                        letterSpacing: 1.5 * scale,
+                        fontWeight: FontWeight.w600,
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -427,6 +428,50 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                   return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Level & Coins Pill
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                          vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF090B1E).withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6)),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x22FFD700), blurRadius: 8, spreadRadius: 1),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.bolt, size: 14, color: Color(0xFF00FF88)),
+                            const SizedBox(width: 3),
+                            Text(
+                              'LV. ${StorageService.instance.getLevel()}',
+                              style: TextStyle(
+                                color: const Color(0xFF00FF88),
+                                fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text('•', style: TextStyle(color: Colors.white30, fontSize: 10)),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.monetization_on, size: 14, color: Color(0xFFFFD700)),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${StorageService.instance.getCoins()}',
+                              style: TextStyle(
+                                color: const Color(0xFFFFD700),
+                                fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       if (isOwner) ...[
                         InkWell(
                           borderRadius: BorderRadius.circular(20),

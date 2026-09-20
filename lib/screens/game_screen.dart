@@ -48,11 +48,16 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   double _lastBroadcastTime = 0.0;
   double _elapsedTime = 0.0;
 
+  int? _earnedCoins;
+  int? _earnedLevel;
+  int _totalCoins = 0;
+
   bool get _isOwner => UserUtils.isOwner(SupabaseService.instance.currentUsername);
 
   @override
   void initState() {
     super.initState();
+    _totalCoins = StorageService.instance.getCoins();
     _engine = PongEngine(
       mode: widget.mode,
       difficulty: widget.difficulty,
@@ -118,7 +123,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     });
   }
 
-  void _saveRecords() {
+  void _saveRecords() async {
     if (widget.mode == GameMode.practice) {
       StorageService.instance.saveBestRally(_engine.maxRally);
       SupabaseService.instance.saveGameResult(
@@ -126,32 +131,53 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         score: 0,
         rally: _engine.maxRally,
       );
-    } else if (widget.mode == GameMode.twoPlayer) {
-      // Unranked Casual Local 2-Player: strictly do not record wins, scores, or games played
       return;
-    } else if (widget.mode == GameMode.onlineMultiplayer) {
-      // Ranked Online 1v1 PvP
-      final won = widget.isOnlineHost ? (_engine.winner == 1) : (_engine.winner == 2);
-      final myScore = widget.isOnlineHost ? _engine.score1 : _engine.score2;
-      if (won) {
-        StorageService.instance.saveHighScore(myScore);
-      }
-      SupabaseService.instance.saveGameResult(
-        won: won,
-        score: myScore,
-        rally: _engine.maxRally,
-      );
-    } else {
-      final isWinner = _engine.winner == 1;
-      if (isWinner) {
-        StorageService.instance.saveHighScore(_engine.score1);
-      }
-      SupabaseService.instance.saveGameResult(
-        won: isWinner,
-        score: _engine.score1,
-        rally: _engine.maxRally,
-      );
+    } 
+    
+    if (widget.mode == GameMode.twoPlayer) {
+      // Unranked Casual Local 2-Player: strictly do not record wins, scores, levels, or coins
+      return;
     }
+
+    final bool won;
+    final int myScore;
+
+    if (widget.mode == GameMode.onlineMultiplayer) {
+      // Ranked Online 1v1 PvP
+      won = widget.isOnlineHost ? (_engine.winner == 1) : (_engine.winner == 2);
+      myScore = widget.isOnlineHost ? _engine.score1 : _engine.score2;
+    } else {
+      // Single Player vs AI
+      won = _engine.winner == 1;
+      myScore = _engine.score1;
+    }
+
+    int? newLevel;
+    int? newCoins;
+
+    if (won) {
+      StorageService.instance.saveHighScore(myScore);
+      newLevel = await StorageService.instance.incrementLevel();
+      const reward = 50;
+      newCoins = await StorageService.instance.addCoins(reward);
+      if (mounted) {
+        setState(() {
+          _earnedLevel = newLevel;
+          _earnedCoins = reward;
+          _totalCoins = newCoins!;
+        });
+      }
+    } else {
+      _totalCoins = StorageService.instance.getCoins();
+    }
+
+    SupabaseService.instance.saveGameResult(
+      won: won,
+      score: myScore,
+      rally: _engine.maxRally,
+      level: newLevel ?? StorageService.instance.getLevel(),
+      coins: newCoins ?? StorageService.instance.getCoins(),
+    );
   }
 
   void _onTick(Duration elapsed) {
@@ -658,7 +684,64 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                         'Max Rally: ${_engine.maxRally}',
                         style: TextStyle(color: Colors.white70, fontSize: (14 * scale).roundToDouble()),
                       ),
-                      SizedBox(height: 24 * scale),
+                      if (_earnedLevel != null && _earnedCoins != null) ...[
+                        SizedBox(height: 14 * scale),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: (16 * scale).roundToDouble(),
+                            vertical: (10 * scale).roundToDouble(),
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0x3300FF88), Color(0x33FFD700)],
+                            ),
+                            borderRadius: BorderRadius.circular(14 * scale),
+                            border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
+                            boxShadow: const [
+                              BoxShadow(color: Color(0x44FFD700), blurRadius: 12, spreadRadius: 1),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.arrow_circle_up, color: Color(0xFF00FF88), size: 18),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'LEVEL UP!  LV. $_earnedLevel',
+                                    style: TextStyle(
+                                      color: const Color(0xFF00FF88),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: (13 * scale).roundToDouble(),
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.monetization_on, color: Color(0xFFFFD700), size: 18),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '+$_earnedCoins COINS!  (Total: $_totalCoins)',
+                                    style: TextStyle(
+                                      color: const Color(0xFFFFD700),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: (12 * scale).roundToDouble(),
+                                      letterSpacing: 1.1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      SizedBox(height: 20 * scale),
                       if (widget.mode != GameMode.onlineMultiplayer) ...[
                         ElevatedButton.icon(
                           style: _buttonStyle(widget.theme.paddle1Color, scale),

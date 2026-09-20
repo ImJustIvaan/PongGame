@@ -107,4 +107,27 @@ class StorageService {
   Future<void> saveLocalBannedUsersJson(List<String> list) async {
     await _prefs?.setStringList('local_banned_users', list);
   }
+
+  // Level & Coin Progression System
+  int getLevel() => _prefs?.getInt('player_level') ?? 1;
+  Future<void> saveLevel(int level) async {
+    await _prefs?.setInt('player_level', level.clamp(1, 99999));
+  }
+
+  Future<int> incrementLevel([int by = 1]) async {
+    final next = getLevel() + by;
+    await saveLevel(next);
+    return next;
+  }
+
+  int getCoins() => _prefs?.getInt('player_coins') ?? 0;
+  Future<void> saveCoins(int coins) async {
+    await _prefs?.setInt('player_coins', coins.clamp(0, 9999999));
+  }
+
+  Future<int> addCoins(int amount) async {
+    final next = getCoins() + amount;
+    await saveCoins(next);
+    return next;
+  }
 }
