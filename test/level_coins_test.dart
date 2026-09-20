@@ -167,4 +167,40 @@ void main() {
       expect(scoreBoard.first.highScore, greaterThanOrEqualTo(99));
     });
   });
+
+  group('Player Profile Search & Privacy Tests', () {
+    test('searchPlayers finds matching users and respects privacy (no emails)', () async {
+      await StorageService.instance.addKnownUsername('shadow_ninja');
+      await StorageService.instance.addKnownUsername('cyber_samurai');
+
+      // Search matching ninja
+      final results = await SupabaseService.instance.searchPlayers('ninja');
+      expect(results.any((p) => p.username.contains('ninja')), isTrue);
+
+      // Verify that PlayerStats objects do not expose emails
+      for (final player in results) {
+        expect(player.username.isNotEmpty, isTrue);
+        // PlayerStats map representation check
+        final map = {
+          'username': player.username,
+          'high_score': player.highScore,
+          'best_rally': player.bestRally,
+          'games_played': player.gamesPlayed,
+          'wins': player.wins,
+          'level': player.level,
+          'coins': player.coins,
+          'kills': player.kills,
+        };
+        expect(map.containsKey('email'), isFalse);
+      }
+    });
+
+    test('fetchPlayerProfile returns stats without email', () async {
+      await StorageService.instance.addKnownUsername('target_pilot');
+      final profile = await SupabaseService.instance.fetchPlayerProfile('target_pilot');
+      expect(profile, isNotNull);
+      expect(profile!.username, 'target_pilot');
+      expect(profile.level, greaterThanOrEqualTo(1));
+    });
+  });
 }

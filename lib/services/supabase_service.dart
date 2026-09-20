@@ -576,6 +576,210 @@ class SupabaseService {
     return attachActiveUser([]);
   }
 
+  // Search other players by username (strictly public stats, NEVER reveals emails)
+  Future<List<PlayerStats>> searchPlayers(String query, {int limit = 10}) async {
+    final clean = query.trim().toLowerCase().replaceAll('@', '');
+    if (clean.isEmpty) return [];
+
+    final List<PlayerStats> results = [];
+    final Set<String> seenUsernames = {};
+
+    // 1. Current user
+    final myName = currentUsername;
+    if (myName.isNotEmpty && myName.toLowerCase().contains(clean)) {
+      results.add(PlayerStats(
+        username: myName,
+        highScore: StorageService.instance.getHighScore(),
+        bestRally: StorageService.instance.getBestRally(),
+        gamesPlayed: StorageService.instance.getWins(),
+        wins: StorageService.instance.getWins(),
+        level: StorageService.instance.getLevel(),
+        coins: StorageService.instance.getCoins(),
+        kills: StorageService.instance.getKills(),
+      ));
+      seenUsernames.add(myName.toLowerCase());
+    }
+
+    // 2. Owner
+    if ('imjustivaan'.contains(clean) && !seenUsernames.contains('imjustivaan')) {
+      final ownerStats = StorageService.instance.getLocalUserStats('ImJustIvaan');
+      results.add(PlayerStats(
+        username: 'ImJustIvaan',
+        highScore: (ownerStats['high_score'] as num?)?.toInt() ?? 100,
+        bestRally: (ownerStats['best_rally'] as num?)?.toInt() ?? 50,
+        gamesPlayed: (ownerStats['wins'] as num?)?.toInt() ?? 50,
+        wins: (ownerStats['wins'] as num?)?.toInt() ?? 50,
+        level: (ownerStats['level'] as num?)?.toInt() ?? 99,
+        coins: (ownerStats['coins'] as num?)?.toInt() ?? 5000,
+        kills: (ownerStats['kills'] as num?)?.toInt() ?? 100,
+      ));
+      seenUsernames.add('imjustivaan');
+    }
+
+    // 3. Local known usernames
+    final known = StorageService.instance.getKnownUsernames();
+    for (final u in known) {
+      final lower = u.toLowerCase();
+      if (lower.contains(clean) && !seenUsernames.contains(lower)) {
+        final st = StorageService.instance.getLocalUserStats(u);
+        results.add(PlayerStats(
+          username: u,
+          highScore: (st['high_score'] as num?)?.toInt() ?? 0,
+          bestRally: (st['best_rally'] as num?)?.toInt() ?? 0,
+          gamesPlayed: (st['wins'] as num?)?.toInt() ?? 0,
+          wins: (st['wins'] as num?)?.toInt() ?? 0,
+          level: (st['level'] as num?)?.toInt() ?? 1,
+          coins: (st['coins'] as num?)?.toInt() ?? 0,
+          kills: (st['kills'] as num?)?.toInt() ?? 0,
+        ));
+        seenUsernames.add(lower);
+      }
+    }
+
+    if (!isConfigured) {
+      return results.take(limit).toList();
+    }
+
+    // 4. Query Supabase Client SDK (explicitly select ONLY public gaming columns, never email)
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        final data = await client!
+            .from('game_stats')
+            .select('username, high_score, best_rally, games_played, wins, level, coins, kills')
+            .ilike('username', '%$clean%')
+            .limit(limit)
+            .timeout(const Duration(seconds: 5));
+
+        for (final row in data) {
+          final stats = PlayerStats.fromMap(row);
+          final lower = stats.username.toLowerCase();
+          if (!seenUsernames.contains(lower)) {
+            results.add(stats);
+            seenUsernames.add(lower);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Supabase SDK searchPlayers notice: $e');
+    }
+
+    // 5. Direct REST Fallback (public columns only)
+    try {
+      final encoded = Uri.encodeComponent('%$clean%');
+      final uri = Uri.parse(
+        '${SupabaseConfig.url}/rest/v1/game_stats?select=username,high_score,best_rally,games_played,wins,level,coins,kills&username=ilike.$encoded&limit=$limit',
+      );
+      final res = await http.get(
+        uri,
+        headers: {
+          'apikey': SupabaseConfig.anonKey,
+          'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is List) {
+          for (final row in decoded) {
+            final stats = PlayerStats.fromMap(row as Map<String, dynamic>);
+            final lower = stats.username.toLowerCase();
+            if (!seenUsernames.contains(lower)) {
+              results.add(stats);
+              seenUsernames.add(lower);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Direct REST searchPlayers notice: $e');
+    }
+
+    return results.take(limit).toList();
+  }
+
+  // Fetch single player public profile (strictly public stats, NEVER reveals email)
+  Future<PlayerStats?> fetchPlayerProfile(String username) async {
+    final clean = username.trim().toLowerCase().replaceAll('@', '');
+    if (clean.isEmpty) return null;
+
+    final myName = currentUsername;
+    if (clean == myName.toLowerCase()) {
+      return PlayerStats(
+        username: myName,
+        highScore: StorageService.instance.getHighScore(),
+        bestRally: StorageService.instance.getBestRally(),
+        gamesPlayed: StorageService.instance.getWins(),
+        wins: StorageService.instance.getWins(),
+        level: StorageService.instance.getLevel(),
+        coins: StorageService.instance.getCoins(),
+        kills: StorageService.instance.getKills(),
+      );
+    }
+
+    if (isConfigured) {
+      try {
+        if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+        if (_initialized && client != null) {
+          final data = await client!
+              .from('game_stats')
+              .select('username, high_score, best_rally, games_played, wins, level, coins, kills')
+              .ilike('username', clean)
+              .limit(1)
+              .maybeSingle()
+              .timeout(const Duration(seconds: 5));
+          if (data != null) {
+            return PlayerStats.fromMap(data);
+          }
+        }
+      } catch (e) {
+        debugPrint('fetchPlayerProfile SDK notice: $e');
+      }
+
+      try {
+        final encoded = Uri.encodeComponent(clean);
+        final uri = Uri.parse(
+          '${SupabaseConfig.url}/rest/v1/game_stats?select=username,high_score,best_rally,games_played,wins,level,coins,kills&username=ilike.$encoded&limit=1',
+        );
+        final res = await http.get(
+          uri,
+          headers: {
+            'apikey': SupabaseConfig.anonKey,
+            'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+            'Content-Type': 'application/json',
+          },
+        ).timeout(const Duration(seconds: 6));
+
+        if (res.statusCode == 200) {
+          final decoded = jsonDecode(res.body);
+          if (decoded is List && decoded.isNotEmpty) {
+            return PlayerStats.fromMap(decoded.first as Map<String, dynamic>);
+          }
+        }
+      } catch (e) {
+        debugPrint('fetchPlayerProfile REST notice: $e');
+      }
+    }
+
+    // Local fallback
+    if (clean == 'imjustivaan' || StorageService.instance.isKnownUser(clean)) {
+      final st = StorageService.instance.getLocalUserStats(clean);
+      return PlayerStats(
+        username: clean == 'imjustivaan' ? 'ImJustIvaan' : clean,
+        highScore: (st['high_score'] as num?)?.toInt() ?? 0,
+        bestRally: (st['best_rally'] as num?)?.toInt() ?? 0,
+        gamesPlayed: (st['wins'] as num?)?.toInt() ?? 0,
+        wins: (st['wins'] as num?)?.toInt() ?? 0,
+        level: (st['level'] as num?)?.toInt() ?? 1,
+        coins: (st['coins'] as num?)?.toInt() ?? 0,
+        kills: (st['kills'] as num?)?.toInt() ?? 0,
+      );
+    }
+
+    return null;
+  }
+
   // Ban Management (Admin / Owner)
   Future<List<BanRecord>> fetchBannedUsers() async {
     final localList = _loadLocalBans();
