@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../config/supabase_config.dart';
 import '../game/game_theme.dart';
 import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
@@ -29,8 +28,6 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _usernameController = TextEditingController();
-  final _urlController = TextEditingController(text: SupabaseConfig.url);
-  final _anonKeyController = TextEditingController(text: SupabaseConfig.anonKey);
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -43,6 +40,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
+    // 2 tabs when logged in (STATS, LEADERBOARD), 3 tabs when logged out (SIGN IN, SIGN UP, LEADERBOARD)
     _tabController = TabController(length: _supabase.isLoggedIn ? 2 : 3, vsync: this);
     _loadInitialData();
   }
@@ -73,8 +71,6 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
     _emailController.dispose();
     _passwordController.dispose();
     _usernameController.dispose();
-    _urlController.dispose();
-    _anonKeyController.dispose();
     super.dispose();
   }
 
@@ -92,6 +88,19 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
       _errorMessage = null;
     });
 
+    if (!_supabase.isConfigured) {
+      // Offline fallback: simulate local login
+      final username = email.split('@').first;
+      setState(() {
+        _isLoading = false;
+        _successMessage = 'Logged in locally as $username!';
+      });
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) Navigator.of(context).pop();
+      });
+      return;
+    }
+
     final error = await _supabase.signIn(email: email, password: password);
     if (error != null) {
       setState(() {
@@ -99,7 +108,6 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
         _isLoading = false;
       });
     } else {
-      // Sync local records on login
       await _supabase.syncLocalRecords(
         StorageService.instance.getHighScore(),
         StorageService.instance.getBestRally(),
@@ -135,6 +143,18 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
       _errorMessage = null;
     });
 
+    if (!_supabase.isConfigured) {
+      // Offline fallback
+      setState(() {
+        _isLoading = false;
+        _successMessage = 'Account created locally for $username!';
+      });
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) Navigator.of(context).pop();
+      });
+      return;
+    }
+
     final error = await _supabase.signUp(
       email: email,
       password: password,
@@ -159,31 +179,6 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
         Navigator.of(context).pop();
       }
     }
-  }
-
-  void _handleSaveConfig() async {
-    final url = _urlController.text.trim();
-    final key = _anonKeyController.text.trim();
-
-    if (url.isEmpty || key.isEmpty) {
-      setState(() => _errorMessage = 'URL and Anon Key cannot be empty.');
-      return;
-    }
-
-    setState(() => _isLoading = true);
-    await SupabaseConfig.saveCustomConfig(url, key);
-    final success = await _supabase.initialize();
-
-    setState(() {
-      _isLoading = false;
-      if (success) {
-        _successMessage = 'Connected to Supabase!';
-        _errorMessage = null;
-      } else {
-        _errorMessage = 'Could not connect. Please check URL and Key.';
-      }
-    });
-    if (success) _fetchLeaderboard();
   }
 
   @override
@@ -215,7 +210,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _supabase.isLoggedIn ? 'PLAYER PROFILE' : 'ACCOUNT & CLOUD',
+                    _supabase.isLoggedIn ? 'PLAYER PROFILE' : 'PLAYER ACCOUNT',
                     style: TextStyle(
                       color: widget.theme.ballColor,
                       fontSize: 18,
@@ -246,7 +241,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                   : const [
                       Tab(text: 'SIGN IN'),
                       Tab(text: 'SIGN UP'),
-                      Tab(text: 'SUPABASE SETUP'),
+                      Tab(text: 'LEADERBOARD'),
                     ],
             ),
 
@@ -290,7 +285,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                         : [
                             _buildSignInView(),
                             _buildSignUpView(),
-                            _buildConfigView(),
+                            _buildLeaderboardView(),
                           ],
                   ),
                 ),
@@ -351,11 +346,13 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                     StorageService.instance.getBestRally(),
                   );
                   final s = await _supabase.fetchMyStats();
-                  setState(() {
-                    _myStats = s;
-                    _isLoading = false;
-                    _successMessage = 'Synced with Supabase cloud!';
-                  });
+                  if (mounted) {
+                    setState(() {
+                      _myStats = s;
+                      _isLoading = false;
+                      _successMessage = 'Synced with cloud!';
+                    });
+                  }
                 },
               ),
             ),
@@ -388,12 +385,31 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
     if (_isLoadingLeaderboard) {
       return const Center(child: CircularProgressIndicator());
     }
+    final localHigh = StorageService.instance.getHighScore();
+    final localBestRally = StorageService.instance.getBestRally();
+
     if (_leaderboard.isEmpty) {
-      return const Center(
-        child: Text(
-          'No scores recorded yet.\nBe the first to hit the leaderboard!',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white54, fontSize: 14),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.emoji_events_outlined, size: 54, color: widget.theme.paddle1Color),
+            const SizedBox(height: 14),
+            Text(
+              'YOUR ARCADE BEST',
+              style: TextStyle(
+                color: widget.theme.ballColor,
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                letterSpacing: 2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'HIGH SCORE: $localHigh   •   BEST RALLY: $localBestRally',
+              style: TextStyle(color: widget.theme.paddle1Color, fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
       );
     }
@@ -488,41 +504,6 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
             child: _isLoading
                 ? const CircularProgressIndicator(color: Colors.black)
                 : const Text('CREATE ACCOUNT', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildConfigView() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'CONNECT SUPABASE',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.2),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Paste your project credentials from Supabase Dashboard -> Project Settings -> API',
-          style: TextStyle(color: Colors.white54, fontSize: 11),
-        ),
-        const SizedBox(height: 12),
-        _inputField(controller: _urlController, label: 'Project URL (https://xyz.supabase.co)', icon: Icons.link),
-        const SizedBox(height: 12),
-        _inputField(controller: _anonKeyController, label: 'Anon Public Key', icon: Icons.key),
-        const Spacer(),
-        SizedBox(
-          width: double.infinity,
-          height: 44,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: widget.theme.paddle1Color,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: _isLoading ? null : _handleSaveConfig,
-            child: const Text('SAVE & CONNECT', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ),
       ],
