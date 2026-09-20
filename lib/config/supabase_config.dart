@@ -8,18 +8,30 @@ class SupabaseConfig {
   // 3. Or empty string fallback
   static String get url {
     final fromDotenv = dotenv.maybeGet('SUPABASE_URL')?.trim() ?? '';
-    if (fromDotenv.isNotEmpty) return fromDotenv;
+    if (fromDotenv.isNotEmpty && !fromDotenv.contains('your-project-id') && !fromDotenv.contains('YOUR_PROJECT_ID')) {
+      return fromDotenv;
+    }
 
     const fromDefine = String.fromEnvironment('SUPABASE_URL');
-    return fromDefine.trim();
+    if (fromDefine.isNotEmpty && !fromDefine.contains('your-project-id') && !fromDefine.contains('YOUR_PROJECT_ID')) {
+      return fromDefine.trim();
+    }
+
+    return fromDotenv;
   }
 
   static String get anonKey {
     final fromDotenv = dotenv.maybeGet('SUPABASE_ANON_KEY')?.trim() ?? '';
-    if (fromDotenv.isNotEmpty) return fromDotenv;
+    if (fromDotenv.isNotEmpty && !fromDotenv.contains('your-anon') && !fromDotenv.contains('YOUR_SUPABASE_ANON_KEY')) {
+      return fromDotenv;
+    }
 
     const fromDefine = String.fromEnvironment('SUPABASE_ANON_KEY');
-    return fromDefine.trim();
+    if (fromDefine.isNotEmpty && !fromDefine.contains('your-anon') && !fromDefine.contains('YOUR_SUPABASE_ANON_KEY')) {
+      return fromDefine.trim();
+    }
+
+    return fromDotenv;
   }
 
   static bool get isConfigured {
