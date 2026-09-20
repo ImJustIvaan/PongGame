@@ -32,7 +32,9 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          cp .env.example .env || copy .env.example .env || true
+          flutter pub get
 
       - name: Run analyzer
         run: flutter analyze
@@ -62,7 +64,9 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          cp .env.example .env || copy .env.example .env || true
+          flutter pub get
 
       - name: Build Release APK
         run: flutter build apk --release
@@ -89,7 +93,9 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          cp .env.example .env || copy .env.example .env || true
+          flutter pub get
 
       - name: Build iOS (No Codesign)
         run: flutter build ios --release --no-codesign
@@ -116,7 +122,9 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          cp .env.example .env || copy .env.example .env || true
+          flutter pub get
 
       - name: Build Web
         run: flutter build web --release --base-href "/"
@@ -146,7 +154,9 @@ jobs:
         run: flutter config --enable-windows-desktop
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          cp .env.example .env || copy .env.example .env || true
+          flutter pub get
 
       - name: Build Windows
         run: flutter build windows --release
