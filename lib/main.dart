@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/main_menu_screen.dart';
 import 'services/storage_service.dart';
+import 'services/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,12 @@ void main() async {
     await StorageService.instance.init();
   } catch (e) {
     debugPrint('Storage init fallback: $e');
+  }
+
+  try {
+    await SupabaseService.instance.initialize();
+  } catch (e) {
+    debugPrint('Supabase init fallback: $e');
   }
 
   runApp(const PongApp());

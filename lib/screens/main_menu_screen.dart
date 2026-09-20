@@ -4,7 +4,9 @@ import '../game/game_theme.dart';
 import '../game/pong_engine.dart';
 import '../services/sound_service.dart';
 import '../services/storage_service.dart';
+import '../services/supabase_service.dart';
 import '../widgets/pong_canvas.dart';
+import 'account_dialog.dart';
 import 'game_screen.dart';
 
 class MainMenuScreen extends StatefulWidget {
@@ -160,15 +162,24 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                     const SizedBox(height: 24),
 
                     // Bottom Bar: Theme switcher, sound toggle, stats
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 10,
+                      runSpacing: 8,
                       children: [
                         _buildIconButton(
                           icon: Icons.palette_outlined,
                           label: _theme.name,
                           onPressed: _showThemePicker,
                         ),
-                        const SizedBox(width: 16),
+                        _buildIconButton(
+                          icon: Icons.leaderboard_outlined,
+                          label: 'SCORES',
+                          onPressed: () async {
+                            await AccountDialog.show(context, _theme);
+                            setState(() {});
+                          },
+                        ),
                         _buildIconButton(
                           icon: _soundEnabled ? Icons.volume_up : Icons.volume_off,
                           label: _soundEnabled ? 'SOUND ON' : 'MUTED',
@@ -196,6 +207,61 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                         ),
                       ),
                   ],
+                ),
+              ),
+            ),
+          ),
+
+          // Top-right Account / Profile button
+          Positioned(
+            top: 12,
+            right: 14,
+            child: SafeArea(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () async {
+                  await AccountDialog.show(context, _theme);
+                  setState(() {});
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: SupabaseService.instance.isLoggedIn
+                          ? _theme.paddle1Color
+                          : Colors.white24,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        SupabaseService.instance.isLoggedIn
+                            ? Icons.cloud_done
+                            : Icons.account_circle_outlined,
+                        size: 16,
+                        color: SupabaseService.instance.isLoggedIn
+                            ? _theme.paddle1Color
+                            : Colors.white70,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        SupabaseService.instance.isLoggedIn
+                            ? SupabaseService.instance.currentUsername.toUpperCase()
+                            : 'ACCOUNT',
+                        style: TextStyle(
+                          color: SupabaseService.instance.isLoggedIn
+                              ? _theme.paddle1Color
+                              : Colors.white70,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

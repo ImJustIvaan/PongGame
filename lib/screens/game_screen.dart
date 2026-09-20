@@ -5,6 +5,7 @@ import '../game/game_theme.dart';
 import '../game/pong_engine.dart';
 import '../services/sound_service.dart';
 import '../services/storage_service.dart';
+import '../services/supabase_service.dart';
 import '../widgets/pong_canvas.dart';
 
 class GameScreen extends StatefulWidget {
@@ -57,8 +58,21 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   void _saveRecords() {
     if (widget.mode == GameMode.practice) {
       StorageService.instance.saveBestRally(_engine.maxRally);
-    } else if (_engine.winner == 1) {
-      StorageService.instance.saveHighScore(_engine.score1);
+      SupabaseService.instance.saveGameResult(
+        won: false,
+        score: 0,
+        rally: _engine.maxRally,
+      );
+    } else {
+      final isWinner = _engine.winner == 1;
+      if (isWinner) {
+        StorageService.instance.saveHighScore(_engine.score1);
+      }
+      SupabaseService.instance.saveGameResult(
+        won: isWinner,
+        score: _engine.score1,
+        rally: _engine.maxRally,
+      );
     }
   }
 
