@@ -52,7 +52,7 @@ class SupabaseService {
   }
 
   Future<bool> initialize() async {
-    await SupabaseConfig.loadCustomConfig();
+    await SupabaseConfig.load();
     if (!SupabaseConfig.isConfigured) {
       debugPrint('Supabase credentials not configured yet. Running in offline/guest mode.');
       return false;

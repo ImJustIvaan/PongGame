@@ -1,40 +1,46 @@
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class SupabaseConfig {
-  // Default project credentials (can be overridden here or in the in-game settings)
-  static const String defaultUrl = 'https://YOUR_PROJECT_ID.supabase.co';
-  static const String defaultAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+  // Reads from:
+  // 1. .env file via flutter_dotenv
+  // 2. Or compile-time --dart-define=SUPABASE_URL=...
+  // 3. Or empty string fallback
+  static String get url {
+    final fromDotenv = dotenv.maybeGet('SUPABASE_URL')?.trim() ?? '';
+    if (fromDotenv.isNotEmpty) return fromDotenv;
 
-  static String _url = defaultUrl;
-  static String _anonKey = defaultAnonKey;
+    const fromDefine = String.fromEnvironment('SUPABASE_URL');
+    return fromDefine.trim();
+  }
 
-  static String get url => _url;
-  static String get anonKey => _anonKey;
+  static String get anonKey {
+    final fromDotenv = dotenv.maybeGet('SUPABASE_ANON_KEY')?.trim() ?? '';
+    if (fromDotenv.isNotEmpty) return fromDotenv;
+
+    const fromDefine = String.fromEnvironment('SUPABASE_ANON_KEY');
+    return fromDefine.trim();
+  }
 
   static bool get isConfigured {
-    return _url.isNotEmpty &&
-        _anonKey.isNotEmpty &&
-        !_url.contains('YOUR_PROJECT_ID') &&
-        !_anonKey.contains('YOUR_SUPABASE_ANON_KEY');
+    final u = url;
+    final k = anonKey;
+    return u.isNotEmpty &&
+        k.isNotEmpty &&
+        !u.contains('your-project-id') &&
+        !u.contains('YOUR_PROJECT_ID') &&
+        !k.contains('your-anon') &&
+        !k.contains('YOUR_SUPABASE_ANON_KEY');
   }
 
-  static Future<void> loadCustomConfig() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedUrl = prefs.getString('custom_supabase_url');
-    final savedKey = prefs.getString('custom_supabase_key');
-    if (savedUrl != null && savedUrl.isNotEmpty) {
-      _url = savedUrl;
+  static Future<void> load() async {
+    try {
+      await dotenv.load(fileName: '.env');
+      if (isConfigured) {
+        debugPrint('Loaded Supabase credentials from .env');
+      }
+    } catch (_) {
+      // .env missing or in test/CI - falls back gracefully
     }
-    if (savedKey != null && savedKey.isNotEmpty) {
-      _anonKey = savedKey;
-    }
-  }
-
-  static Future<void> saveCustomConfig(String url, String key) async {
-    final prefs = await SharedPreferences.getInstance();
-    _url = url.trim();
-    _anonKey = key.trim();
-    await prefs.setString('custom_supabase_url', _url);
-    await prefs.setString('custom_supabase_key', _anonKey);
   }
 }

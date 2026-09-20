@@ -3,10 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/main_menu_screen.dart';
 import 'services/storage_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {}
 
   if (!kIsWeb) {
     try {
