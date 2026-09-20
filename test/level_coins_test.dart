@@ -141,4 +141,30 @@ void main() {
       expect(StorageService.instance.getWins(), greaterThanOrEqualTo(5));
     });
   });
+
+  group('Leaderboard Category Tests', () {
+    test('fetchLeaderboard orders by level, kills, wins, and high_score', () async {
+      await StorageService.instance.saveUsername('test_leader');
+      await StorageService.instance.saveLevel(42);
+      await StorageService.instance.saveKills(150);
+      await StorageService.instance.saveWins(25);
+      await StorageService.instance.saveHighScore(99);
+
+      final levelBoard = await SupabaseService.instance.fetchLeaderboard(orderBy: 'level');
+      expect(levelBoard.isNotEmpty, isTrue);
+      expect(levelBoard.first.level, greaterThanOrEqualTo(42));
+
+      final killsBoard = await SupabaseService.instance.fetchLeaderboard(orderBy: 'kills');
+      expect(killsBoard.isNotEmpty, isTrue);
+      expect(killsBoard.first.kills, greaterThanOrEqualTo(150));
+
+      final winsBoard = await SupabaseService.instance.fetchLeaderboard(orderBy: 'wins');
+      expect(winsBoard.isNotEmpty, isTrue);
+      expect(winsBoard.first.wins, greaterThanOrEqualTo(25));
+
+      final scoreBoard = await SupabaseService.instance.fetchLeaderboard(orderBy: 'high_score');
+      expect(scoreBoard.isNotEmpty, isTrue);
+      expect(scoreBoard.first.highScore, greaterThanOrEqualTo(99));
+    });
+  });
 }

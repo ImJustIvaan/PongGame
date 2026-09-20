@@ -7,17 +7,46 @@ import '../utils/user_utils.dart';
 import '../widgets/banned_dialog.dart';
 import 'admin_panel_dialog.dart';
 
+enum LeaderboardType {
+  level('level', 'LEVEL', Icons.bolt, Color(0xFF00FF88)),
+  kills('kills', 'KILLS', Icons.local_fire_department, Color(0xFFFF2A6D)),
+  wins('wins', 'WINS', Icons.emoji_events, Color(0xFFFFD700)),
+  score('high_score', 'SCORE', Icons.stars, Color(0xFF00E5FF));
+
+  final String column;
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const LeaderboardType(this.column, this.label, this.icon, this.color);
+}
+
 class AccountDialog extends StatefulWidget {
   final PongTheme theme;
   final int? initialTab;
+  final LeaderboardType? initialLeaderboardType;
 
-  const AccountDialog({super.key, required this.theme, this.initialTab});
+  const AccountDialog({
+    super.key,
+    required this.theme,
+    this.initialTab,
+    this.initialLeaderboardType,
+  });
 
-  static Future<void> show(BuildContext context, PongTheme theme, {int? initialTab}) {
+  static Future<void> show(
+    BuildContext context,
+    PongTheme theme, {
+    int? initialTab,
+    LeaderboardType? initialLeaderboardType,
+  }) {
     return showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.85),
-      builder: (_) => AccountDialog(theme: theme, initialTab: initialTab),
+      builder: (_) => AccountDialog(
+        theme: theme,
+        initialTab: initialTab,
+        initialLeaderboardType: initialLeaderboardType,
+      ),
     );
   }
 
@@ -43,6 +72,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
   PlayerStats? _myStats;
   List<PlayerStats> _leaderboard = [];
   bool _isLoadingLeaderboard = false;
+  LeaderboardType _leaderboardType = LeaderboardType.level;
 
   static const List<String> _suggestedNames = [
     'CYBER_VIPER',
@@ -62,6 +92,9 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
   @override
   void initState() {
     super.initState();
+    if (widget.initialLeaderboardType != null) {
+      _leaderboardType = widget.initialLeaderboardType!;
+    }
     _initTabController();
 
     final localName = StorageService.instance.getUsername();
@@ -136,11 +169,16 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     _fetchLeaderboard();
   }
 
-  void _fetchLeaderboard() async {
+  void _fetchLeaderboard({LeaderboardType? type}) async {
     if (!mounted) return;
+    if (type != null) {
+      _leaderboardType = type;
+    }
     setState(() => _isLoadingLeaderboard = true);
     try {
-      final list = await _supabase.fetchLeaderboard().timeout(const Duration(seconds: 8));
+      final list = await _supabase.fetchLeaderboard(
+        orderBy: _leaderboardType.column,
+      ).timeout(const Duration(seconds: 8));
       if (mounted) {
         setState(() {
           _leaderboard = list;
@@ -1350,54 +1388,96 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
   }
 
   Widget _buildLeaderboardView(Color cyan) {
-    if (_isLoadingLeaderboard) {
-      return Center(child: CircularProgressIndicator(color: cyan));
-    }
+    final activeColor = _leaderboardType.color;
     final localHigh = StorageService.instance.getHighScore();
     final localBestRally = StorageService.instance.getBestRally();
+    final localLevel = StorageService.instance.getLevel();
+    final localCoins = StorageService.instance.getCoins();
+    final localKills = StorageService.instance.getKills();
+    final localWins = StorageService.instance.getWins();
 
-    if (_leaderboard.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: cyan.withValues(alpha: 0.1),
-                border: Border.all(color: cyan.withValues(alpha: 0.4)),
-              ),
-              child: Icon(Icons.emoji_events_outlined, size: 48, color: cyan),
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'YOUR RECORD',
-              style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 2),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'HIGH SCORE: $localHigh   •   BEST RALLY: $localBestRally',
-              style: TextStyle(color: cyan, fontSize: 13, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: cyan,
-                side: BorderSide(color: cyan.withValues(alpha: 0.6)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.refresh, size: 16),
-              label: const Text('RELOAD LEADERBOARD', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              onPressed: _fetchLeaderboard,
-            ),
-          ],
-        ),
-      );
+    String userRecordText;
+    switch (_leaderboardType) {
+      case LeaderboardType.level:
+        userRecordText = 'LEVEL $localLevel   •   $localCoins COINS';
+        break;
+      case LeaderboardType.kills:
+        userRecordText = '$localKills KILLS RECORD';
+        break;
+      case LeaderboardType.wins:
+        userRecordText = '$localWins WINS TOTAL';
+        break;
+      case LeaderboardType.score:
+        userRecordText = 'HIGH SCORE: $localHigh   •   BEST RALLY: $localBestRally';
+        break;
     }
 
     return Column(
       children: [
+        // Category Selector Bar (LEVEL, KILLS, WINS, SCORE)
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF10132C),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Row(
+            children: LeaderboardType.values.map((type) {
+              final isSelected = _leaderboardType == type;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    if (_leaderboardType != type) {
+                      _fetchLeaderboard(type: type);
+                    }
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isSelected ? type.color.withValues(alpha: 0.22) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isSelected ? type.color : Colors.transparent,
+                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: type.color.withValues(alpha: 0.35),
+                                blurRadius: 8,
+                              )
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          type.icon,
+                          size: 13,
+                          color: isSelected ? type.color : Colors.white54,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          type.label,
+                          style: TextStyle(
+                            color: isSelected ? type.color : Colors.white60,
+                            fontSize: 10.5,
+                            fontWeight: isSelected ? FontWeight.w900 : FontWeight.bold,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+
         if (!_isLoggedIn)
           Container(
             margin: const EdgeInsets.only(bottom: 10),
@@ -1425,87 +1505,181 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
             ),
           ),
         Expanded(
-          child: ListView.builder(
-            itemCount: _leaderboard.length,
-            itemBuilder: (context, idx) {
-        final item = _leaderboard[idx];
-        final rankMedal = idx == 0 ? '🥇' : (idx == 1 ? '🥈' : (idx == 2 ? '🥉' : '#${idx + 1}'));
-        final isTop3 = idx < 3;
-        final isVerified = UserUtils.isVerified(item.username);
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: isTop3 ? cyan.withValues(alpha: 0.1) : const Color(0xFF10132C),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isTop3 ? cyan : Colors.white12,
-            ),
-            boxShadow: isTop3
-                ? [
-                    BoxShadow(
-                      color: cyan.withValues(alpha: 0.2),
-                      blurRadius: 10,
+          child: _isLoadingLeaderboard
+              ? Center(child: CircularProgressIndicator(color: activeColor))
+              : _leaderboard.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: activeColor.withValues(alpha: 0.1),
+                              border: Border.all(color: activeColor.withValues(alpha: 0.4)),
+                            ),
+                            child: Icon(_leaderboardType.icon, size: 44, color: activeColor),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'YOUR RECORD',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            userRecordText,
+                            style: TextStyle(
+                              color: activeColor,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: activeColor,
+                              side: BorderSide(color: activeColor.withValues(alpha: 0.6)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            icon: const Icon(Icons.refresh, size: 15),
+                            label: const Text('RELOAD', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                            onPressed: () => _fetchLeaderboard(),
+                          ),
+                        ],
+                      ),
                     )
-                  ]
-                : null,
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 32,
-                child: Text(rankMedal, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-              ),
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        item.username,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                        ),
-                      ),
+                  : ListView.builder(
+                      itemCount: _leaderboard.length,
+                      itemBuilder: (context, idx) {
+                        final item = _leaderboard[idx];
+                        final rankMedal = idx == 0 ? '🥇' : (idx == 1 ? '🥈' : (idx == 2 ? '🥉' : '#${idx + 1}'));
+                        final isTop3 = idx < 3;
+                        final isVerified = UserUtils.isVerified(item.username);
+
+                        String mainValue;
+                        String subInfo;
+                        switch (_leaderboardType) {
+                          case LeaderboardType.level:
+                            mainValue = 'LV. ${item.level}';
+                            subInfo = '${item.wins} wins • ${item.kills} kills';
+                            break;
+                          case LeaderboardType.kills:
+                            mainValue = '${item.kills} KILLS';
+                            subInfo = 'LV. ${item.level} • ${item.wins} wins';
+                            break;
+                          case LeaderboardType.wins:
+                            mainValue = '${item.wins} WINS';
+                            subInfo = 'LV. ${item.level} • ${item.winRate.toStringAsFixed(0)}% win rate';
+                            break;
+                          case LeaderboardType.score:
+                            mainValue = '${item.highScore} PTS';
+                            subInfo = 'LV. ${item.level} • rally ${item.bestRally}';
+                            break;
+                        }
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: isTop3 ? activeColor.withValues(alpha: 0.1) : const Color(0xFF10132C),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isTop3 ? activeColor.withValues(alpha: 0.8) : Colors.white12,
+                            ),
+                            boxShadow: isTop3
+                                ? [
+                                    BoxShadow(
+                                      color: activeColor.withValues(alpha: 0.2),
+                                      blurRadius: 10,
+                                    )
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 30,
+                                child: Text(rankMedal, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                              ),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            item.username,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                        if (isVerified) UserUtils.verifiedBadge(size: 13),
+                                        if (_leaderboardType != LeaderboardType.level)
+                                          Container(
+                                            margin: const EdgeInsets.only(left: 6),
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0x2200FF88),
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(color: const Color(0x6600FF88)),
+                                            ),
+                                            child: Text(
+                                              'LV.${item.level}',
+                                              style: const TextStyle(
+                                                color: Color(0xFF00FF88),
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      subInfo,
+                                      style: const TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: activeColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: activeColor.withValues(alpha: 0.45)),
+                                ),
+                                child: Text(
+                                  mainValue,
+                                  style: TextStyle(
+                                    color: activeColor,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                    shadows: [Shadow(color: activeColor.withValues(alpha: 0.7), blurRadius: 8)],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                    if (isVerified) UserUtils.verifiedBadge(size: 14),
-                    Container(
-                      margin: const EdgeInsets.only(left: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: const Color(0x2200FF88),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0x6600FF88)),
-                      ),
-                      child: Text(
-                        'LV.${item.level}',
-                        style: const TextStyle(
-                          color: Color(0xFF00FF88),
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                '${item.highScore} PTS',
-                style: TextStyle(
-                  color: cyan,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  shadows: [Shadow(color: cyan, blurRadius: 10)],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-          ),
         ),
       ],
     );

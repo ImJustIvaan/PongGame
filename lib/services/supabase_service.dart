@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'storage_service.dart';
 import '../utils/user_utils.dart';
@@ -430,9 +431,71 @@ class SupabaseService {
     return null;
   }
 
-  // Fetch Top 10 Global Leaderboard
-  Future<List<PlayerStats>> fetchLeaderboard({String orderBy = 'high_score', int limit = 10}) async {
-    if (!isConfigured) return [];
+  // Fetch Top Global Leaderboard
+  Future<List<PlayerStats>> fetchLeaderboard({String orderBy = 'level', int limit = 20}) async {
+    List<PlayerStats> sortAndLimit(List<PlayerStats> list) {
+      list.sort((a, b) {
+        switch (orderBy) {
+          case 'level':
+            final cmp = b.level.compareTo(a.level);
+            return cmp != 0 ? cmp : b.wins.compareTo(a.wins);
+          case 'kills':
+            final cmp = b.kills.compareTo(a.kills);
+            return cmp != 0 ? cmp : b.highScore.compareTo(a.highScore);
+          case 'wins':
+            final cmp = b.wins.compareTo(a.wins);
+            return cmp != 0 ? cmp : b.level.compareTo(a.level);
+          case 'high_score':
+          default:
+            final cmp = b.highScore.compareTo(a.highScore);
+            return cmp != 0 ? cmp : b.bestRally.compareTo(a.bestRally);
+        }
+      });
+      return list.take(limit).toList();
+    }
+
+    List<PlayerStats> attachActiveUser(List<PlayerStats> list) {
+      final curUser = currentUsername;
+      if (curUser.isNotEmpty) {
+        final localCoins = StorageService.instance.getCoins();
+        final localLevel = StorageService.instance.getLevel();
+        final localKills = StorageService.instance.getKills();
+        final localWins = StorageService.instance.getWins();
+        final localHigh = StorageService.instance.getHighScore();
+        final localRally = StorageService.instance.getBestRally();
+
+        final idx = list.indexWhere((p) => p.username.toLowerCase() == curUser.toLowerCase());
+        if (idx != -1) {
+          final existing = list[idx];
+          list[idx] = PlayerStats(
+            username: existing.username,
+            highScore: max(existing.highScore, localHigh),
+            bestRally: max(existing.bestRally, localRally),
+            gamesPlayed: max(existing.gamesPlayed, localWins),
+            wins: max(existing.wins, localWins),
+            level: max(existing.level, localLevel),
+            coins: max(existing.coins, localCoins),
+            kills: max(existing.kills, localKills),
+          );
+        } else if (localLevel > 1 || localWins > 0 || localKills > 0 || localHigh > 0) {
+          list.add(PlayerStats(
+            username: curUser,
+            highScore: localHigh,
+            bestRally: localRally,
+            gamesPlayed: localWins,
+            wins: localWins,
+            level: localLevel,
+            coins: localCoins,
+            kills: localKills,
+          ));
+        }
+      }
+      return sortAndLimit(list);
+    }
+
+    if (!isConfigured) {
+      return attachActiveUser([]);
+    }
 
     // 1. Try Supabase Client SDK with timeout
     try {
@@ -440,18 +503,29 @@ class SupabaseService {
         await initialize().timeout(const Duration(seconds: 4));
       }
       if (_initialized && client != null) {
-        final data = await client!
-            .from('game_stats')
-            .select()
-            .order(orderBy, ascending: false)
-            .limit(limit)
-            .timeout(const Duration(seconds: 5));
-
-        final list = (data as List).map((row) => PlayerStats.fromMap(row as Map<String, dynamic>)).toList();
-        for (final item in list) {
-          StorageService.instance.addKnownUsername(item.username);
+        dynamic data;
+        try {
+          data = await client!
+              .from('game_stats')
+              .select()
+              .order(orderBy, ascending: false)
+              .limit(limit)
+              .timeout(const Duration(seconds: 5));
+        } catch (_) {
+          data = await client!
+              .from('game_stats')
+              .select()
+              .limit(50)
+              .timeout(const Duration(seconds: 5));
         }
-        if (list.isNotEmpty) return list;
+
+        if (data is List) {
+          final list = data.map((row) => PlayerStats.fromMap(row as Map<String, dynamic>)).toList();
+          for (final item in list) {
+            StorageService.instance.addKnownUsername(item.username);
+          }
+          if (list.isNotEmpty) return attachActiveUser(list);
+        }
       }
     } catch (e) {
       debugPrint('Supabase client SDK fetch notice: $e');
@@ -459,10 +533,10 @@ class SupabaseService {
 
     // 2. Direct REST Fallback (reliable across Windows Desktop, Web, Android, iOS)
     try {
-      final uri = Uri.parse(
+      Uri uri = Uri.parse(
         '${SupabaseConfig.url}/rest/v1/game_stats?select=*&order=$orderBy.desc&limit=$limit',
       );
-      final res = await http.get(
+      var res = await http.get(
         uri,
         headers: {
           'apikey': SupabaseConfig.anonKey,
@@ -471,6 +545,20 @@ class SupabaseService {
         },
       ).timeout(const Duration(seconds: 6));
 
+      if (res.statusCode != 200) {
+        uri = Uri.parse(
+          '${SupabaseConfig.url}/rest/v1/game_stats?select=*&limit=50',
+        );
+        res = await http.get(
+          uri,
+          headers: {
+            'apikey': SupabaseConfig.anonKey,
+            'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+            'Content-Type': 'application/json',
+          },
+        ).timeout(const Duration(seconds: 6));
+      }
+
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
         if (decoded is List) {
@@ -478,14 +566,14 @@ class SupabaseService {
           for (final item in list) {
             StorageService.instance.addKnownUsername(item.username);
           }
-          return list;
+          return attachActiveUser(list);
         }
       }
     } catch (e) {
       debugPrint('Direct REST fetchLeaderboard fallback error: $e');
     }
 
-    return [];
+    return attachActiveUser([]);
   }
 
   // Ban Management (Admin / Owner)
