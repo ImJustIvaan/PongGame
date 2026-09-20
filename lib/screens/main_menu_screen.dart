@@ -96,12 +96,13 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                   children: [
                     // Title Logo
                     Text(
-                      'P O N G',
+                      'THE PONG GAME!',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         color: _theme.ballColor,
-                        fontSize: 54,
+                        fontSize: 38,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 10,
+                        letterSpacing: 3,
                         shadows: _theme.hasGlow
                             ? [
                                 Shadow(
@@ -112,16 +113,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                             : null,
                       ),
                     ),
+                    const SizedBox(height: 4),
                     Text(
-                      'CROSS-PLATFORM ARCADE',
+                      'Are you game?',
                       style: TextStyle(
                         color: _theme.paddle1Color,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 4,
+                        fontSize: 15,
+                        fontStyle: FontStyle.italic,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 2,
                       ),
                     ),
-                    const SizedBox(height: 36),
+                    const SizedBox(height: 32),
 
                     // Play Buttons
                     _buildPlayButton(

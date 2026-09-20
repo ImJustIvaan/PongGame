@@ -13,7 +13,8 @@ void main() {
     await tester.pumpWidget(const PongApp());
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('P O N G'), findsOneWidget);
+    expect(find.text('THE PONG GAME!'), findsOneWidget);
+    expect(find.text('Are you game?'), findsOneWidget);
     expect(find.text('1 PLAYER  (VS AI)'), findsOneWidget);
   });
 }
