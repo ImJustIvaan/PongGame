@@ -8,6 +8,7 @@ import '../utils/user_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../game/game_theme.dart';
+import '../game/paddle_skin.dart';
 import '../game/pong_engine.dart';
 import '../services/fullscreen_service.dart';
 import '../services/sound_service.dart';
@@ -17,6 +18,7 @@ import '../widgets/pong_canvas.dart';
 import 'account_dialog.dart';
 import 'admin_panel_dialog.dart';
 import 'game_screen.dart';
+import 'skin_shop_dialog.dart';
 
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
@@ -204,6 +206,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
             child: PongCanvas(
               engine: _attractEngine,
               theme: _theme,
+              skin1: PaddleSkinCatalog.byId(StorageService.instance.getEquippedSkin()),
             ),
           ),
 
@@ -296,7 +299,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
 
                     SizedBox(height: (22 * scale).roundToDouble()),
 
-                    // Bottom Bar: Theme switcher, sound toggle, stats
+                    // Bottom Bar: Theme switcher, sound toggle, skins, stats
                     Wrap(
                       alignment: WrapAlignment.center,
                       spacing: (10 * scale).roundToDouble(),
@@ -307,6 +310,15 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                           label: _theme.name,
                           scale: scale,
                           onPressed: _showThemePicker,
+                        ),
+                        _buildIconButton(
+                          icon: Icons.style,
+                          label: 'SKINS',
+                          scale: scale,
+                          onPressed: () async {
+                            await SkinShopDialog.show(context, _theme);
+                            setState(() {});
+                          },
                         ),
                         _buildIconButton(
                           icon: Icons.leaderboard_outlined,
@@ -472,6 +484,47 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                         ),
                       ),
                       const SizedBox(width: 8),
+
+                      // Skins Wardrobe Button
+                      InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () async {
+                          await SkinShopDialog.show(context, _theme);
+                          setState(() {});
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                            vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF090B1E).withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.7)),
+                            boxShadow: const [
+                              BoxShadow(color: Color(0x2200E5FF), blurRadius: 8, spreadRadius: 1),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.palette, size: 14, color: Color(0xFF00E5FF)),
+                              const SizedBox(width: 4),
+                              Text(
+                                'SKINS',
+                                style: TextStyle(
+                                  color: const Color(0xFF00E5FF),
+                                  fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
                       if (isOwner) ...[
                         InkWell(
                           borderRadius: BorderRadius.circular(20),

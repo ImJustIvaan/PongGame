@@ -130,4 +130,74 @@ class StorageService {
     await saveCoins(next);
     return next;
   }
+
+  // --- Paddle Skins & Wardrobe ---
+  String getEquippedSkin() => _prefs?.getString('equipped_skin') ?? 'classic_cyan';
+  Future<void> saveEquippedSkin(String skinId) async {
+    await _prefs?.setString('equipped_skin', skinId);
+  }
+
+  List<String> getOwnedSkins() {
+    final list = _prefs?.getStringList('owned_skins');
+    if (list == null || list.isEmpty) {
+      return ['classic_cyan'];
+    }
+    if (!list.contains('classic_cyan')) {
+      list.add('classic_cyan');
+    }
+    return list;
+  }
+
+  Future<void> saveOwnedSkins(List<String> list) async {
+    final unique = list.toSet().toList();
+    if (!unique.contains('classic_cyan')) {
+      unique.add('classic_cyan');
+    }
+    await _prefs?.setStringList('owned_skins', unique);
+  }
+
+  Future<void> addOwnedSkin(String skinId) async {
+    final current = getOwnedSkins();
+    if (!current.contains(skinId)) {
+      current.add(skinId);
+      await saveOwnedSkins(current);
+    }
+  }
+
+  bool isSkinOwned(String skinId) {
+    if (skinId == 'classic_cyan') return true;
+    return getOwnedSkins().contains(skinId);
+  }
+
+  // --- Verified Users Cache ---
+  List<String> getLocalVerifiedUsers() => _prefs?.getStringList('local_verified_users') ?? ['imjustivaan'];
+  Future<void> saveLocalVerifiedUsers(List<String> list) async {
+    final clean = list.map((u) => u.trim().toLowerCase()).toSet().toList();
+    if (!clean.contains('imjustivaan')) {
+      clean.add('imjustivaan');
+    }
+    await _prefs?.setStringList('local_verified_users', clean);
+  }
+
+  bool isLocalVerified(String username) {
+    final clean = username.trim().toLowerCase();
+    if (clean == 'imjustivaan') return true;
+    return getLocalVerifiedUsers().contains(clean);
+  }
+
+  // --- Locally Granted Skins Map ---
+  List<String> getLocalGrantedSkins(String username) {
+    final clean = username.trim().toLowerCase();
+    return _prefs?.getStringList('granted_skins_$clean') ?? [];
+  }
+
+  Future<void> saveLocalGrantedSkin(String username, String skinId) async {
+    final clean = username.trim().toLowerCase();
+    final list = getLocalGrantedSkins(clean);
+    if (!list.contains(skinId)) {
+      list.add(skinId);
+      await _prefs?.setStringList('granted_skins_$clean', list);
+    }
+  }
 }
+

@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import '../game/game_theme.dart';
+import '../game/paddle_skin.dart';
 import '../game/pong_engine.dart';
 
 class PongCanvas extends StatelessWidget {
   final PongEngine engine;
   final PongTheme theme;
+  final PaddleSkin? skin1;
+  final PaddleSkin? skin2;
 
   const PongCanvas({
     super.key,
     required this.engine,
     required this.theme,
+    this.skin1,
+    this.skin2,
   });
 
   @override
@@ -18,6 +23,8 @@ class PongCanvas extends StatelessWidget {
       painter: _PongPainter(
         engine: engine,
         theme: theme,
+        skin1: skin1,
+        skin2: skin2,
       ),
       child: const SizedBox.expand(),
     );
@@ -27,10 +34,14 @@ class PongCanvas extends StatelessWidget {
 class _PongPainter extends CustomPainter {
   final PongEngine engine;
   final PongTheme theme;
+  final PaddleSkin? skin1;
+  final PaddleSkin? skin2;
 
   _PongPainter({
     required this.engine,
     required this.theme,
+    this.skin1,
+    this.skin2,
   });
 
   @override
@@ -124,6 +135,7 @@ class _PongPainter extends CustomPainter {
       x: engine.paddle1X,
       y: engine.paddle1Y,
       color: theme.paddle1Color,
+      skin: skin1,
       isAutoPilot: engine.ownerAutoPlay,
     );
 
@@ -135,6 +147,7 @@ class _PongPainter extends CustomPainter {
         x: engine.paddle2X,
         y: engine.paddle2Y,
         color: theme.paddle2Color,
+        skin: skin2,
       );
     }
 
@@ -169,6 +182,7 @@ class _PongPainter extends CustomPainter {
     required double x,
     required double y,
     required Color color,
+    PaddleSkin? skin,
     bool isAutoPilot = false,
   }) {
     final pw = engine.paddleWidth * size.width;
@@ -180,6 +194,16 @@ class _PongPainter extends CustomPainter {
       Rect.fromLTWH(px, py, pw, ph),
       Radius.circular(pw / 2),
     );
+
+    if (skin != null) {
+      skin.paintPaddle(
+        canvas,
+        rrect,
+        isAutoPilot: isAutoPilot,
+        hasGlow: theme.hasGlow,
+      );
+      return;
+    }
 
     if (isAutoPilot) {
       final autoGlow = Paint()

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../game/game_theme.dart';
+import '../game/paddle_skin.dart';
 import '../services/supabase_service.dart';
 import '../utils/user_utils.dart';
 
@@ -64,10 +65,20 @@ class AdminPanelDialog extends StatefulWidget {
   State<AdminPanelDialog> createState() => _AdminPanelDialogState();
 }
 
-class _AdminPanelDialogState extends State<AdminPanelDialog> {
-  final _usernameController = TextEditingController();
+class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  // Ban Tab Controllers
+  final _banUsernameController = TextEditingController();
   final _reasonController = TextEditingController();
   BanDurationOption _selectedDuration = BanDurationOption.sevenDays;
+
+  // Verification Tab Controllers
+  final _verifyUsernameController = TextEditingController();
+
+  // Grant Skin Tab Controllers
+  final _skinUsernameController = TextEditingController();
+  PaddleSkin _selectedSkinToGrant = PaddleSkinCatalog.allSkins.first;
 
   bool _isLoading = false;
   bool _isLoadingList = true;
@@ -75,33 +86,43 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> {
   bool _isError = false;
 
   List<BanRecord> _bannedUsers = [];
+  List<String> _verifiedUsers = [];
 
   @override
   void initState() {
     super.initState();
-    _fetchBans();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() => _statusMessage = null);
+    });
+    _fetchData();
   }
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _tabController.dispose();
+    _banUsernameController.dispose();
     _reasonController.dispose();
+    _verifyUsernameController.dispose();
+    _skinUsernameController.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchBans() async {
+  Future<void> _fetchData() async {
     setState(() => _isLoadingList = true);
     final bans = await SupabaseService.instance.fetchBannedUsers();
+    final verified = await SupabaseService.instance.fetchVerifiedUsers();
     if (mounted) {
       setState(() {
         _bannedUsers = bans;
+        _verifiedUsers = verified;
         _isLoadingList = false;
       });
     }
   }
 
   void _submitBan() async {
-    final username = _usernameController.text.trim();
+    final username = _banUsernameController.text.trim();
     if (username.isEmpty) {
       setState(() {
         _isError = true;
@@ -142,11 +163,11 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> {
         } else {
           _isError = false;
           _statusMessage = 'Successfully banned @$username (${_selectedDuration.label})';
-          _usernameController.clear();
+          _banUsernameController.clear();
           _reasonController.clear();
         }
       });
-      _fetchBans();
+      _fetchData();
     }
   }
 
@@ -159,7 +180,108 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> {
         _isError = false;
         _statusMessage = 'Unbanned @$username';
       });
-      _fetchBans();
+      _fetchData();
+    }
+  }
+
+  void _submitVerification({required bool makeVerified}) async {
+    final username = _verifyUsernameController.text.trim();
+    if (username.isEmpty) {
+      setState(() {
+        _isError = true;
+        _statusMessage = 'Please enter a username to verify';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _statusMessage = null;
+    });
+
+    final err = await SupabaseService.instance.setVerifiedStatus(
+      username: username,
+      isVerified: makeVerified,
+      setBy: SupabaseService.instance.currentUsername,
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        if (err != null) {
+          _isError = true;
+          _statusMessage = err;
+        } else {
+          _isError = false;
+          _statusMessage = makeVerified
+              ? 'Successfully verified @$username! Verified badge & exclusive skin granted.'
+              : 'Revoked verification for @$username.';
+          _verifyUsernameController.clear();
+        }
+      });
+      _fetchData();
+    }
+  }
+
+  void _revokeVerification(String username) async {
+    if (UserUtils.isOwner(username)) {
+      setState(() {
+        _isError = true;
+        _statusMessage = 'Cannot revoke owner verification!';
+      });
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    await SupabaseService.instance.setVerifiedStatus(
+      username: username,
+      isVerified: false,
+      setBy: SupabaseService.instance.currentUsername,
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _isError = false;
+        _statusMessage = 'Revoked verification for @$username';
+      });
+      _fetchData();
+    }
+  }
+
+  void _submitGrantSkin() async {
+    final username = _skinUsernameController.text.trim();
+    if (username.isEmpty) {
+      setState(() {
+        _isError = true;
+        _statusMessage = 'Please enter a username to receive the skin';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _statusMessage = null;
+    });
+
+    final err = await SupabaseService.instance.grantSkinToUser(
+      username: username,
+      skinId: _selectedSkinToGrant.id,
+      grantedBy: SupabaseService.instance.currentUsername,
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        if (err != null) {
+          _isError = true;
+          _statusMessage = err;
+        } else {
+          _isError = false;
+          _statusMessage = 'Successfully granted "${_selectedSkinToGrant.name}" to @$username!';
+          _skinUsernameController.clear();
+        }
+      });
     }
   }
 
@@ -167,13 +289,14 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> {
   Widget build(BuildContext context) {
     const red = Color(0xFFFF1744);
     const cyan = Color(0xFF00E5FF);
+    const gold = Color(0xFFFFD700);
 
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       child: Container(
-        width: 580,
-        constraints: const BoxConstraints(maxHeight: 700),
+        width: 620,
+        constraints: const BoxConstraints(maxHeight: 740),
         decoration: BoxDecoration(
           color: const Color(0xFF0A0C1B),
           borderRadius: BorderRadius.circular(24),
@@ -217,7 +340,7 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> {
                           ),
                         ),
                         Text(
-                          'Ban Enforcement & Moderation (ImJustIvaan)',
+                          'Bans • Verified Status • Give Skins (ImJustIvaan)',
                           style: TextStyle(color: Colors.white54, fontSize: 11),
                         ),
                       ],
@@ -230,324 +353,479 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> {
                 ],
               ),
             ),
-            const Divider(color: Colors.white12, height: 1),
 
-            // Body
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            // Tab Bar
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF121528),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: red.withValues(alpha: 0.25),
+                  border: Border.all(color: red.withValues(alpha: 0.8)),
+                ),
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white54,
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, letterSpacing: 0.5),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                tabs: const [
+                  Tab(icon: Icon(Icons.block, size: 16), text: 'BAN PLAYERS'),
+                  Tab(icon: Icon(Icons.verified, size: 16, color: cyan), text: 'VERIFY USERS'),
+                  Tab(icon: Icon(Icons.card_giftcard, size: 16, color: gold), text: 'GIVE SKINS'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Status message
+            if (_statusMessage != null) ...[
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _isError ? red.withValues(alpha: 0.15) : const Color(0xFF00E676).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _isError ? red.withValues(alpha: 0.5) : const Color(0xFF00E676).withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
                   children: [
-                    // Status feedback
-                    if (_statusMessage != null) ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: _isError ? red.withValues(alpha: 0.15) : const Color(0xFF00E676).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _isError ? red.withValues(alpha: 0.5) : const Color(0xFF00E676).withValues(alpha: 0.5),
-                          ),
+                    Icon(
+                      _isError ? Icons.error_outline : Icons.check_circle_outline,
+                      color: _isError ? red : const Color(0xFF00E676),
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _statusMessage!,
+                        style: TextStyle(
+                          color: _isError ? red : const Color(0xFF00E676),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _isError ? Icons.error_outline : Icons.check_circle_outline,
-                              color: _isError ? red : const Color(0xFF00E676),
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                _statusMessage!,
-                                style: TextStyle(
-                                  color: _isError ? red : const Color(0xFF00E676),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Ban Form Box
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: Colors.black26,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white10),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'BAN A USER',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-
-                          // Target Username Field
-                          TextField(
-                            controller: _usernameController,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
-                            cursorColor: red,
-                            decoration: InputDecoration(
-                              labelText: 'Target Username',
-                              labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
-                              hintText: 'e.g. BadPlayer123',
-                              hintStyle: const TextStyle(color: Colors.white24, fontSize: 12),
-                              prefixIcon: const Icon(Icons.person_remove_outlined, color: red, size: 20),
-                              filled: true,
-                              fillColor: const Color(0xFF12152C),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: red.withValues(alpha: 0.4)),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: red, width: 1.5),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Duration Dropdown
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF12152C),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white24),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.timer_outlined, color: Colors.white70, size: 20),
-                                const SizedBox(width: 12),
-                                const Text('Duration: ', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
-                                const Spacer(),
-                                DropdownButton<BanDurationOption>(
-                                  value: _selectedDuration,
-                                  dropdownColor: const Color(0xFF12152C),
-                                  style: const TextStyle(color: red, fontWeight: FontWeight.bold, fontSize: 13),
-                                  underline: const SizedBox(),
-                                  items: BanDurationOption.values.map((opt) {
-                                    return DropdownMenuItem(
-                                      value: opt,
-                                      child: Text(opt.label),
-                                    );
-                                  }).toList(),
-                                  onChanged: (val) {
-                                    if (val != null) setState(() => _selectedDuration = val);
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Reason Field
-                          TextField(
-                            controller: _reasonController,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
-                            cursorColor: red,
-                            decoration: InputDecoration(
-                              labelText: 'Ban Reason (Optional)',
-                              labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
-                              hintText: 'e.g. Cheating / Toxic behavior / Stat farming',
-                              hintStyle: const TextStyle(color: Colors.white24, fontSize: 12),
-                              prefixIcon: const Icon(Icons.note_alt_outlined, color: Colors.white54, size: 20),
-                              filled: true,
-                              fillColor: const Color(0xFF12152C),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: red, width: 1.5),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Ban Button
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: red,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onPressed: _isLoading ? null : _submitBan,
-                              icon: _isLoading
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : const Icon(Icons.gavel, size: 18),
-                              label: Text(
-                                _isLoading ? 'PROCESSING...' : 'EXECUTE BAN',
-                                style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
                     ),
-
-                    const SizedBox(height: 24),
-
-                    // Active Bans List Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'BANNED USERS (${_bannedUsers.length})',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.refresh, color: cyan, size: 20),
-                          tooltip: 'Refresh Banned List',
-                          onPressed: _fetchBans,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    if (_isLoadingList)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: CircularProgressIndicator(strokeWidth: 2, color: cyan),
-                        ),
-                      )
-                    else if (_bannedUsers.isEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.black26,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white10),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'No users are currently banned.',
-                            style: TextStyle(color: Colors.white54, fontSize: 12),
-                          ),
-                        ),
-                      )
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _bannedUsers.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
-                        itemBuilder: (ctx, i) {
-                          final ban = _bannedUsers[i];
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10132B),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: ban.isActive ? red.withValues(alpha: 0.3) : Colors.white12,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 14,
-                                  backgroundColor: ban.isActive ? red.withValues(alpha: 0.2) : Colors.white12,
-                                  child: Icon(
-                                    ban.isActive ? Icons.block : Icons.lock_open,
-                                    color: ban.isActive ? red : Colors.white54,
-                                    size: 16,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Text(
-                                            '@${ban.username}',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: (ban.isActive ? red : Colors.white24).withValues(alpha: 0.18),
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              ban.durationLabel,
-                                              style: TextStyle(
-                                                color: ban.isActive ? red : Colors.white54,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Reason: ${ban.reason}',
-                                        style: const TextStyle(color: Colors.white54, fontSize: 11),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                OutlinedButton(
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.white70,
-                                    side: const BorderSide(color: Colors.white24),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                  ),
-                                  onPressed: () => _unban(ban.username),
-                                  child: const Text('UNBAN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
                   ],
                 ),
+              ),
+            ],
+
+            // Body Tab Views
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildBanTab(red),
+                  _buildVerifyTab(cyan),
+                  _buildGiveSkinsTab(gold),
+                ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // --- TAB 1: BAN USERS ---
+  Widget _buildBanTab(Color accentColor) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'TARGET USERNAME',
+            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _banUsernameController,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Enter username to ban...',
+              hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+              filled: true,
+              fillColor: const Color(0xFF14172B),
+              prefixIcon: const Icon(Icons.person_off, color: Colors.white38, size: 20),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: accentColor)),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          const Text(
+            'BAN DURATION',
+            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: BanDurationOption.values.map((option) {
+              final isSelected = _selectedDuration == option;
+              final isPerm = option == BanDurationOption.permanent;
+              return ChoiceChip(
+                label: Text(
+                  option.label,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.white70,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontSize: 11,
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: isPerm ? accentColor : const Color(0xFFD50000),
+                backgroundColor: const Color(0xFF14172B),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: isSelected ? accentColor : Colors.white12),
+                ),
+                onSelected: (_) => setState(() => _selectedDuration = option),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 14),
+
+          const Text(
+            'REASON (OPTIONAL)',
+            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _reasonController,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'e.g. Cheating / Macro, Abusive behavior',
+              hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+              filled: true,
+              fillColor: const Color(0xFF14172B),
+              prefixIcon: const Icon(Icons.notes, color: Colors.white38, size: 20),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: accentColor)),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _submitBan,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _isLoading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text('ENFORCE ${_selectedDuration.label.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Active bans list
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('ACTIVE BANNED USERS (${_bannedUsers.length})', style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+              IconButton(icon: const Icon(Icons.refresh, size: 16, color: Colors.white60), onPressed: _fetchData),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (_isLoadingList)
+            const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)))
+          else if (_bannedUsers.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: const Color(0xFF14172B), borderRadius: BorderRadius.circular(12)),
+              child: const Text('No users are currently banned.', style: TextStyle(color: Colors.white38, fontSize: 12), textAlign: TextAlign.center),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _bannedUsers.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final ban = _bannedUsers[index];
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(color: const Color(0xFF14172B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('@${ban.username}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                            const SizedBox(height: 2),
+                            Text('${ban.durationLabel} • Reason: ${ban.reason}', style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(foregroundColor: const Color(0xFF00FF88)),
+                        onPressed: () => _unban(ban.username),
+                        child: const Text('UNBAN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  // --- TAB 2: VERIFY USERS ---
+  Widget _buildVerifyTab(Color accentColor) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'MAKE SOMEONE VERIFIED',
+            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 0.8),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Verified players get the official glowing cyan badge and unlock the exclusive Verified Legend paddle skin.',
+            style: TextStyle(color: Colors.white54, fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+
+          const Text(
+            'PLAYER USERNAME',
+            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _verifyUsernameController,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Enter username to verify...',
+              hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+              filled: true,
+              fillColor: const Color(0xFF14172B),
+              prefixIcon: Icon(Icons.verified, color: accentColor, size: 20),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: accentColor)),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.check_circle, size: 16),
+                  label: const Text('GRANT VERIFIED STATUS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: _isLoading ? null : () => _submitVerification(makeVerified: true),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+
+          // Current Verified Users List
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('VERIFIED PLAYERS (${_verifiedUsers.length})', style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+              IconButton(icon: const Icon(Icons.refresh, size: 16, color: Colors.white60), onPressed: _fetchData),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (_isLoadingList)
+            const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)))
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _verifiedUsers.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final username = _verifiedUsers[index];
+                final isOwner = UserUtils.isOwner(username);
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF14172B),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.verified, color: accentColor, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '@$username ${isOwner ? "(Owner)" : ""}',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      if (!isOwner)
+                        TextButton(
+                          style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                          onPressed: () => _revokeVerification(username),
+                          child: const Text('REVOKE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  // --- TAB 3: GIVE SKINS ---
+  Widget _buildGiveSkinsTab(Color accentColor) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'GIVE OUT SKINS TO USERS',
+            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 0.8),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Instantly grant any paddle skin (solid color, pattern, or exclusive) directly to any player by entering their username.',
+            style: TextStyle(color: Colors.white54, fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+
+          const Text(
+            'RECEIVER USERNAME',
+            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _skinUsernameController,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Enter username to receive skin...',
+              hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+              filled: true,
+              fillColor: const Color(0xFF14172B),
+              prefixIcon: Icon(Icons.card_giftcard, color: accentColor, size: 20),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: accentColor)),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          const Text(
+            'SELECT SKIN TO GRANT',
+            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+          ),
+          const SizedBox(height: 8),
+
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF14172B),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Column(
+              children: [
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<PaddleSkin>(
+                    isExpanded: true,
+                    dropdownColor: const Color(0xFF0F1226),
+                    value: _selectedSkinToGrant,
+                    items: PaddleSkinCatalog.allSkins.map((skin) {
+                      return DropdownMenuItem<PaddleSkin>(
+                        value: skin,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 14,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: skin.primaryColor,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              skin.name,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '(${skin.type.name.toUpperCase()})',
+                              style: TextStyle(color: Colors.white54, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (skin) {
+                      if (skin != null) setState(() => _selectedSkinToGrant = skin);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _selectedSkinToGrant.description,
+                  style: const TextStyle(color: Colors.white60, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.send, size: 16),
+              label: Text(
+                'GRANT "${_selectedSkinToGrant.name.toUpperCase()}" TO USER',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: _isLoading ? null : _submitGrantSkin,
+            ),
+          ),
+        ],
       ),
     );
   }

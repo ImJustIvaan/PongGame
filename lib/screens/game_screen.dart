@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import '../game/game_theme.dart';
+import '../game/paddle_skin.dart';
 import '../game/pong_engine.dart';
 import '../services/fullscreen_service.dart';
 import '../services/sound_service.dart';
@@ -367,6 +368,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               PongCanvas(
                 engine: _engine,
                 theme: widget.theme,
+                skin1: PaddleSkinCatalog.byId(StorageService.instance.getEquippedSkin()),
               ),
 
               // HUD & Scores

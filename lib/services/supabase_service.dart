@@ -565,4 +565,177 @@ class SupabaseService {
       StorageService.instance.saveLocalBannedUsersJson(jsonList);
     } catch (_) {}
   }
+
+  // --- Verified Users Management ---
+  Future<List<String>> fetchVerifiedUsers() async {
+    final local = StorageService.instance.getLocalVerifiedUsers();
+    if (!isConfigured) return local;
+
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        final data = await client!
+            .from('verified_users')
+            .select('username')
+            .timeout(const Duration(seconds: 6));
+        final list = (data as List)
+            .map((e) => (e['username'] as String? ?? '').toLowerCase().trim())
+            .where((u) => u.isNotEmpty)
+            .toList();
+        if (!list.contains('imjustivaan')) list.add('imjustivaan');
+        await StorageService.instance.saveLocalVerifiedUsers(list);
+        return list;
+      }
+    } catch (e) {
+      debugPrint('Notice fetching verified users from Supabase: $e');
+    }
+    return local;
+  }
+
+  Future<bool> checkVerifiedStatus(String username) async {
+    final clean = username.trim().toLowerCase();
+    if (clean == 'imjustivaan') return true;
+    if (StorageService.instance.isLocalVerified(clean)) return true;
+
+    if (!isConfigured) return false;
+
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        final data = await client!
+            .from('verified_users')
+            .select('username')
+            .eq('username', clean)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 5));
+        if (data != null) {
+          final current = StorageService.instance.getLocalVerifiedUsers();
+          if (!current.contains(clean)) {
+            current.add(clean);
+            await StorageService.instance.saveLocalVerifiedUsers(current);
+          }
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Notice checking verified status: $e');
+    }
+    return false;
+  }
+
+  Future<String?> setVerifiedStatus({
+    required String username,
+    required bool isVerified,
+    String? setBy,
+  }) async {
+    final clean = username.trim().toLowerCase();
+    if (clean.isEmpty) return 'Username cannot be empty';
+
+    final local = StorageService.instance.getLocalVerifiedUsers();
+    if (isVerified) {
+      if (!local.contains(clean)) {
+        local.add(clean);
+        await StorageService.instance.saveLocalVerifiedUsers(local);
+      }
+      // Also automatically award them the exclusive Verified Legend skin!
+      await grantSkinToUser(
+        username: clean,
+        skinId: 'verified_legend',
+        grantedBy: setBy ?? 'Admin',
+      );
+    } else {
+      if (clean == 'imjustivaan') {
+        return 'Cannot unverify the system owner!';
+      }
+      local.remove(clean);
+      await StorageService.instance.saveLocalVerifiedUsers(local);
+    }
+
+    if (!isConfigured) return null;
+
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        if (isVerified) {
+          await client!.from('verified_users').upsert({
+            'username': clean,
+            'verified_at': DateTime.now().toUtc().toIso8601String(),
+            'verified_by': setBy ?? 'ImJustIvaan',
+          }, onConflict: 'username').timeout(const Duration(seconds: 6));
+        } else {
+          await client!.from('verified_users').delete().eq('username', clean).timeout(const Duration(seconds: 6));
+        }
+      }
+    } catch (e) {
+      debugPrint('Notice updating verified user in Supabase: $e');
+    }
+    return null;
+  }
+
+  // --- Admin Granted Skins Management ---
+  Future<List<String>> fetchGrantedSkins(String username) async {
+    final clean = username.trim().toLowerCase();
+    final local = StorageService.instance.getLocalGrantedSkins(clean);
+    if (!isConfigured) return local;
+
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        final data = await client!
+            .from('granted_skins')
+            .select('skin_id')
+            .eq('username', clean)
+            .timeout(const Duration(seconds: 6));
+        final list = (data as List)
+            .map((e) => (e['skin_id'] as String? ?? '').trim())
+            .where((s) => s.isNotEmpty)
+            .toSet()
+            .toList();
+        for (final s in list) {
+          await StorageService.instance.saveLocalGrantedSkin(clean, s);
+          if (clean == currentUsername.toLowerCase()) {
+            await StorageService.instance.addOwnedSkin(s);
+          }
+        }
+        return list;
+      }
+    } catch (e) {
+      debugPrint('Notice fetching granted skins: $e');
+    }
+    return local;
+  }
+
+  Future<String?> grantSkinToUser({
+    required String username,
+    required String skinId,
+    required String grantedBy,
+  }) async {
+    final clean = username.trim().toLowerCase();
+    if (clean.isEmpty) return 'Username cannot be empty';
+    if (skinId.isEmpty) return 'Skin ID cannot be empty';
+
+    // Update local cache
+    await StorageService.instance.saveLocalGrantedSkin(clean, skinId);
+    if (clean == currentUsername.toLowerCase()) {
+      await StorageService.instance.addOwnedSkin(skinId);
+    }
+
+    if (!isConfigured) return null;
+
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        await client!.from('granted_skins').upsert({
+          'username': clean,
+          'skin_id': skinId,
+          'granted_by': grantedBy,
+          'granted_at': DateTime.now().toUtc().toIso8601String(),
+        }).timeout(const Duration(seconds: 6));
+      }
+    } catch (e) {
+      debugPrint('Notice saving granted skin to Supabase: $e');
+    }
+    return null;
+  }
 }
+

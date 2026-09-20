@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
+import '../services/storage_service.dart';
 
 class UserUtils {
-  /// Checks if the given username belongs to the verified account 'imjustivaan' (case-insensitive).
-  static bool isVerified(String? username) {
+  /// Checks if the given username has owner admin privileges (strictly ImJustIvaan).
+  static bool isOwner(String? username) {
     if (username == null) return false;
     return username.trim().toLowerCase() == 'imjustivaan';
   }
 
-  /// Alias specifically indicating verified owner privileges for ImJustIvaan.
-  static bool isOwner(String? username) => isVerified(username);
+  /// Checks if the given username belongs to a verified account (owner or admin-verified).
+  static bool isVerified(String? username) {
+    if (username == null) return false;
+    if (isOwner(username)) return true;
+    return StorageService.instance.isLocalVerified(username);
+  }
 
   /// Glowing verified checkmark badge widget.
   static Widget verifiedBadge({double size = 16}) {
