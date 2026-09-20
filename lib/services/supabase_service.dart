@@ -41,6 +41,7 @@ class SupabaseService {
   bool get isConfigured => SupabaseConfig.isConfigured;
 
   SupabaseClient? get client => _initialized ? Supabase.instance.client : null;
+  Stream<AuthState>? get authStateChanges => client?.auth.onAuthStateChange;
   User? get currentUser => client?.auth.currentUser;
   bool get isLoggedIn => (currentUser != null) || StorageService.instance.isLoggedIn();
 

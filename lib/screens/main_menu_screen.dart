@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent, AuthState;
+import '../widgets/set_new_password_dialog.dart';
 import '../utils/user_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -18,6 +22,7 @@ class MainMenuScreen extends StatefulWidget {
 }
 
 class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProviderStateMixin {
+  StreamSubscription<AuthState>? _authSub;
   late PongThemeType _selectedThemeType;
   late AiDifficulty _difficulty;
   late int _targetScore;
@@ -35,6 +40,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     _targetScore = StorageService.instance.getTargetScore();
     _soundEnabled = StorageService.instance.getSoundEnabled();
     SoundService.instance.isMuted = !_soundEnabled;
+    _initAuthListener();
 
 
 
@@ -54,8 +60,33 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
 
   @override
   void dispose() {
+    _authSub?.cancel();
     _attractTicker.dispose();
     super.dispose();
+  }
+
+  void _initAuthListener() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (kIsWeb) {
+        final frag = Uri.base.fragment;
+        final query = Uri.base.queryParameters;
+        if (frag.contains('type=recovery') || query['type'] == 'recovery') {
+          _promptSetNewPassword();
+        }
+      }
+    });
+
+    _authSub = SupabaseService.instance.authStateChanges?.listen((data) {
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        _promptSetNewPassword();
+      }
+    });
+  }
+
+  void _promptSetNewPassword() async {
+    if (!mounted) return;
+    await SetNewPasswordDialog.show(context, _theme);
+    if (mounted) setState(() {});
   }
 
   PongTheme get _theme => PongTheme.fromType(_selectedThemeType);
@@ -192,6 +223,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                             setState(() {
                               _soundEnabled = !_soundEnabled;
                               SoundService.instance.isMuted = !_soundEnabled;
+    _initAuthListener();
                               StorageService.instance.saveSoundEnabled(_soundEnabled);
                             });
                           },
