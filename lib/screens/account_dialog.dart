@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../game/game_theme.dart';
 import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
+import '../utils/user_utils.dart';
 
 class AccountDialog extends StatefulWidget {
   final PongTheme theme;
@@ -21,8 +22,8 @@ class AccountDialog extends StatefulWidget {
   State<AccountDialog> createState() => _AccountDialogState();
 }
 
-class _AccountDialogState extends State<AccountDialog> with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _AccountDialogState extends State<AccountDialog> with TickerProviderStateMixin {
+  late TabController _tabController;
   final SupabaseService _supabase = SupabaseService.instance;
 
   final _emailController = TextEditingController();
@@ -37,7 +38,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
   List<PlayerStats> _leaderboard = [];
   bool _isLoadingLeaderboard = false;
 
-  static const List<String> _coolGamerTags = [
+  static const List<String> _suggestedNames = [
     'CYBER_VIPER',
     'NEON_BLADE',
     'PADDLE_ZERO',
@@ -47,17 +48,15 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
     'HYPER_PULSE',
     'SHADOW_ACE',
     'TURBO_CORE',
-    'ARCADE_GOD',
+    'VORTEX_KING',
   ];
+
+  bool get _isLoggedIn => StorageService.instance.isLoggedIn() || _supabase.isLoggedIn;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-      length: _supabase.isLoggedIn ? 2 : 3,
-      vsync: this,
-      initialIndex: _supabase.isLoggedIn ? 0 : 1, // Default to CREATE TAG / SIGN UP
-    );
+    _initTabController();
 
     final localName = StorageService.instance.getUsername();
     if (localName != null && localName.isNotEmpty) {
@@ -67,8 +66,23 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
     _loadInitialData();
   }
 
+  void _initTabController() {
+    final count = _isLoggedIn ? 2 : 3;
+    _tabController = TabController(
+      length: count,
+      vsync: this,
+      initialIndex: 0,
+    );
+  }
+
+  void _rebuildTabController() {
+    _tabController.dispose();
+    _initTabController();
+    setState(() {});
+  }
+
   void _loadInitialData() async {
-    if (_supabase.isLoggedIn) {
+    if (_isLoggedIn) {
       final stats = await _supabase.fetchMyStats();
       if (mounted) setState(() => _myStats = stats);
     }
@@ -96,8 +110,8 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
     super.dispose();
   }
 
-  void _rollRandomGamerTag() {
-    final rand = _coolGamerTags[Random().nextInt(_coolGamerTags.length)];
+  void _rollRandomName() {
+    final rand = _suggestedNames[Random().nextInt(_suggestedNames.length)];
     final num = Random().nextInt(99) + 1;
     setState(() {
       _usernameController.text = '$rand$num';
@@ -110,7 +124,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = 'PLEASE ENTER EMAIL & PASSWORD');
+      setState(() => _errorMessage = 'Please enter both email and password');
       return;
     }
 
@@ -122,23 +136,23 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
     if (!_supabase.isConfigured) {
       final username = email.split('@').first;
       await StorageService.instance.saveUsername(username);
+      await StorageService.instance.setLoggedIn(true);
       setState(() {
         _isLoading = false;
-        _successMessage = 'PILOT IDENTIFIED: $username';
+        _successMessage = 'Logged in as $username';
       });
-      Future.delayed(const Duration(milliseconds: 700), () {
-        if (mounted) Navigator.of(context).pop();
-      });
+      _rebuildTabController();
       return;
     }
 
     final error = await _supabase.signIn(email: email, password: password);
     if (error != null) {
       setState(() {
-        _errorMessage = error.toUpperCase();
+        _errorMessage = error;
         _isLoading = false;
       });
     } else {
+      await StorageService.instance.setLoggedIn(true);
       await _supabase.syncLocalRecords(
         StorageService.instance.getHighScore(),
         StorageService.instance.getBestRally(),
@@ -148,9 +162,9 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
         setState(() {
           _isLoading = false;
           _myStats = stats;
-          _successMessage = 'WELCOME BACK, ${_supabase.currentUsername.toUpperCase()}!';
+          _successMessage = 'Welcome back, ${_supabase.currentUsername}!';
         });
-        Navigator.of(context).pop();
+        _rebuildTabController();
       }
     }
   }
@@ -161,11 +175,11 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
     final username = _usernameController.text.trim();
 
     if (email.isEmpty || password.isEmpty || username.isEmpty) {
-      setState(() => _errorMessage = 'ALL TERMINAL FIELDS REQUIRED');
+      setState(() => _errorMessage = 'All fields are required');
       return;
     }
     if (password.length < 6) {
-      setState(() => _errorMessage = 'CIPHER KEY MUST BE 6+ CHARACTERS');
+      setState(() => _errorMessage = 'Password must be at least 6 characters');
       return;
     }
 
@@ -175,15 +189,14 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
     });
 
     await StorageService.instance.saveUsername(username);
+    await StorageService.instance.setLoggedIn(true);
 
     if (!_supabase.isConfigured) {
       setState(() {
         _isLoading = false;
-        _successMessage = 'PILOT $username REGISTERED!';
+        _successMessage = 'Account created for $username';
       });
-      Future.delayed(const Duration(milliseconds: 700), () {
-        if (mounted) Navigator.of(context).pop();
-      });
+      _rebuildTabController();
       return;
     }
 
@@ -195,7 +208,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
 
     if (error != null) {
       setState(() {
-        _errorMessage = error.toUpperCase();
+        _errorMessage = error;
         _isLoading = false;
       });
     } else {
@@ -206,10 +219,25 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _successMessage = 'PILOT $username INITIALIZED!';
+          _successMessage = 'Welcome, $username!';
         });
-        Navigator.of(context).pop();
+        _rebuildTabController();
       }
+    }
+  }
+
+  void _handleLogOut() async {
+    setState(() => _isLoading = true);
+    await StorageService.instance.logout();
+    await _supabase.signOut();
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _myStats = null;
+        _successMessage = 'Logged out successfully';
+        _errorMessage = null;
+      });
+      _rebuildTabController();
     }
   }
 
@@ -217,6 +245,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
   Widget build(BuildContext context) {
     final glowColor = widget.theme.paddle1Color;
     final accentPink = widget.theme.paddle2Color;
+    final loggedIn = _isLoggedIn;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -224,19 +253,19 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
       child: Container(
         width: 440,
         decoration: BoxDecoration(
-          color: const Color(0xFF060714),
+          color: const Color(0xFF090B1E),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: glowColor, width: 2),
+          border: Border.all(color: glowColor.withValues(alpha: 0.8), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: glowColor.withValues(alpha: 0.45),
-              blurRadius: 36,
+              color: glowColor.withValues(alpha: 0.35),
+              blurRadius: 32,
               spreadRadius: 2,
             ),
             BoxShadow(
-              color: accentPink.withValues(alpha: 0.25),
-              blurRadius: 60,
-              spreadRadius: 4,
+              color: accentPink.withValues(alpha: 0.2),
+              blurRadius: 50,
+              spreadRadius: 2,
             ),
           ],
         ),
@@ -244,11 +273,23 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
           borderRadius: BorderRadius.circular(22),
           child: Stack(
             children: [
-              // CRT Scanline Overlay
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _CyberGridPainter(color: glowColor.withValues(alpha: 0.04)),
+              // Subtle background ambient glow
+              Positioned(
+                top: -60,
+                right: -60,
+                child: Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: glowColor.withValues(alpha: 0.12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: glowColor.withValues(alpha: 0.2),
+                        blurRadius: 60,
+                        spreadRadius: 30,
+                      )
+                    ],
                   ),
                 ),
               ),
@@ -258,15 +299,17 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Arcade Top Header
+                    // Header Bar
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            color: glowColor.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: glowColor.withValues(alpha: 0.6)),
+                            color: loggedIn ? const Color(0x2200E5FF) : Colors.white10,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: loggedIn ? glowColor.withValues(alpha: 0.7) : Colors.white24,
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -275,94 +318,95 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                                 width: 8,
                                 height: 8,
                                 decoration: BoxDecoration(
-                                  color: glowColor,
+                                  color: loggedIn ? const Color(0xFF00FF88) : Colors.white38,
                                   shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: glowColor,
-                                      blurRadius: 8,
-                                      spreadRadius: 2,
-                                    )
-                                  ],
+                                  boxShadow: loggedIn
+                                      ? [
+                                          const BoxShadow(
+                                            color: Color(0xFF00FF88),
+                                            blurRadius: 6,
+                                            spreadRadius: 1,
+                                          )
+                                        ]
+                                      : null,
                                 ),
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                _supabase.isLoggedIn ? 'PILOT ONLINE' : 'NEW CHALLENGER',
+                                loggedIn ? 'LOGGED IN' : 'GUEST',
                                 style: TextStyle(
-                                  color: glowColor,
+                                  color: loggedIn ? glowColor : Colors.white60,
                                   fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.5,
                                 ),
                               ),
                             ],
                           ),
                         ),
                         const Spacer(),
-                        InkWell(
-                          borderRadius: BorderRadius.circular(20),
-                          onTap: () => Navigator.of(context).pop(),
-                          child: Container(
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: Colors.white10,
+                              color: Colors.white12,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white24),
                             ),
                             child: const Icon(Icons.close, color: Colors.white70, size: 16),
                           ),
+                          onPressed: () => Navigator.of(context).pop(),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
 
-                    // Main Title with Glow
+                    // Title
                     Text(
-                      _supabase.isLoggedIn ? 'PILOT DOSSIER' : 'ENTER THE GRID',
+                      loggedIn ? 'PLAYER PROFILE' : 'PLAYER ACCOUNT',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 3,
+                        letterSpacing: 2,
                         shadows: [
-                          Shadow(color: glowColor, blurRadius: 20),
-                          Shadow(color: accentPink, blurRadius: 30),
+                          Shadow(color: glowColor.withValues(alpha: 0.8), blurRadius: 16),
                         ],
                       ),
                     ),
                     const SizedBox(height: 16),
 
-                    // Segmented Arcade Tabs
+                    // Tab Bar
                     _buildSegmentedTabBar(glowColor),
                     const SizedBox(height: 16),
 
-                    // Error & Success Neon Banners
+                    // Status Messages
                     if (_errorMessage != null)
                       Container(
                         margin: const EdgeInsets.only(bottom: 14),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                         decoration: BoxDecoration(
-                          color: const Color(0x33FF0055),
+                          color: const Color(0x33FF1744),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFFF0055)),
+                          border: Border.all(color: const Color(0xFFFF1744)),
                           boxShadow: const [
-                            BoxShadow(color: Color(0x44FF0055), blurRadius: 12)
+                            BoxShadow(color: Color(0x44FF1744), blurRadius: 10)
                           ],
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, color: Color(0xFFFF0055), size: 18),
+                            const Icon(Icons.error_outline, color: Color(0xFFFF1744), size: 18),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 _errorMessage!,
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.1,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
@@ -373,27 +417,26 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                     if (_successMessage != null)
                       Container(
                         margin: const EdgeInsets.only(bottom: 14),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                         decoration: BoxDecoration(
-                          color: const Color(0x3300FF99),
+                          color: const Color(0x3300FF88),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF00FF99)),
+                          border: Border.all(color: const Color(0xFF00FF88)),
                           boxShadow: const [
-                            BoxShadow(color: Color(0x4400FF99), blurRadius: 12)
+                            BoxShadow(color: Color(0x4400FF88), blurRadius: 10)
                           ],
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.check_circle_outline, color: Color(0xFF00FF99), size: 18),
+                            const Icon(Icons.check_circle_outline, color: Color(0xFF00FF88), size: 18),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 _successMessage!,
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.1,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
@@ -401,14 +444,14 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                         ),
                       ),
 
-                    // Scrollable Tab View
+                    // Tab View
                     Flexible(
                       child: SingleChildScrollView(
                         child: SizedBox(
-                          height: 330,
+                          height: 350,
                           child: TabBarView(
                             controller: _tabController,
-                            children: _supabase.isLoggedIn
+                            children: loggedIn
                                 ? [
                                     _buildProfileView(glowColor),
                                     _buildLeaderboardView(glowColor),
@@ -436,14 +479,14 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
     return AnimatedBuilder(
       animation: _tabController,
       builder: (context, _) {
-        final tabs = _supabase.isLoggedIn
-            ? ['MY STATS', 'HALL OF FAME']
-            : ['SIGN IN', 'CREATE TAG', 'TOP SCORES'];
+        final tabs = _isLoggedIn
+            ? ['PROFILE & STATS', 'LEADERBOARD']
+            : ['SIGN IN', 'SIGN UP', 'LEADERBOARD'];
 
         return Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: const Color(0xFF0C0E24),
+            color: const Color(0xFF10132C),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: Colors.white12),
           ),
@@ -476,7 +519,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                         color: isSelected ? Colors.black : Colors.white60,
                         fontSize: 11,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 1.2,
+                        letterSpacing: 1.1,
                       ),
                     ),
                   ),
@@ -494,29 +537,29 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildNeonField(
-          label: '// ARCADE GAMER TAG',
+          label: 'USERNAME',
           controller: _usernameController,
-          hint: 'e.g. CYBER_PADDLE',
-          icon: Icons.sports_esports_outlined,
+          hint: 'e.g. imjustivaan',
+          icon: Icons.person_outline,
           glowColor: pink,
           trailing: InkWell(
             borderRadius: BorderRadius.circular(8),
-            onTap: _rollRandomGamerTag,
+            onTap: _rollRandomName,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               margin: const EdgeInsets.only(right: 6),
               decoration: BoxDecoration(
-                color: pink.withValues(alpha: 0.2),
+                color: pink.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: pink.withValues(alpha: 0.6)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.casino_outlined, size: 15, color: pink),
+                  Icon(Icons.casino_outlined, size: 14, color: pink),
                   const SizedBox(width: 4),
                   Text(
-                    'ROLL',
+                    'RANDOM',
                     style: TextStyle(color: pink, fontSize: 10, fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -526,15 +569,15 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
         ),
         const SizedBox(height: 12),
         _buildNeonField(
-          label: '// PILOT EMAIL',
+          label: 'EMAIL ADDRESS',
           controller: _emailController,
-          hint: 'pilot@grid.io',
+          hint: 'user@example.com',
           icon: Icons.alternate_email,
           glowColor: cyan,
         ),
         const SizedBox(height: 12),
         _buildNeonField(
-          label: '// CIPHER KEY (6+ CHARS)',
+          label: 'PASSWORD (6+ CHARACTERS)',
           controller: _passwordController,
           hint: '••••••••',
           icon: Icons.lock_outline,
@@ -543,8 +586,8 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
         ),
         const Spacer(),
         _buildGlowButton(
-          title: 'INITIALIZE ACCOUNT ➔',
-          gradientColors: [pink, const Color(0xFF8A2387)],
+          title: 'CREATE ACCOUNT',
+          gradientColors: [pink, const Color(0xFF9C27B0)],
           glowColor: pink,
           isLoading: _isLoading,
           onTap: _handleSignUp,
@@ -554,8 +597,8 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
           child: TextButton(
             onPressed: () => _tabController.animateTo(0),
             child: const Text(
-              'Already registered? SIGN IN ➔',
-              style: TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 1),
+              'Already have an account? SIGN IN',
+              style: TextStyle(color: Colors.white60, fontSize: 12),
             ),
           ),
         ),
@@ -567,26 +610,26 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         _buildNeonField(
-          label: '// REGISTERED EMAIL',
+          label: 'EMAIL ADDRESS',
           controller: _emailController,
-          hint: 'pilot@grid.io',
+          hint: 'user@example.com',
           icon: Icons.alternate_email,
           glowColor: cyan,
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         _buildNeonField(
-          label: '// CIPHER KEY',
+          label: 'PASSWORD',
           controller: _passwordController,
           hint: '••••••••',
-          icon: Icons.vpn_key_outlined,
+          icon: Icons.lock_outline,
           obscureText: true,
           glowColor: cyan,
         ),
         const Spacer(),
         _buildGlowButton(
-          title: 'ACCESS TERMINAL ➔',
+          title: 'SIGN IN',
           gradientColors: [cyan, const Color(0xFF0072FF)],
           glowColor: cyan,
           isLoading: _isLoading,
@@ -597,8 +640,8 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
           child: TextButton(
             onPressed: () => _tabController.animateTo(1),
             child: const Text(
-              'Need a gamertag? CREATE TAG ➔',
-              style: TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 1),
+              'Need an account? SIGN UP',
+              style: TextStyle(color: Colors.white60, fontSize: 12),
             ),
           ),
         ),
@@ -607,7 +650,8 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
   }
 
   Widget _buildProfileView(Color cyan) {
-    final name = _supabase.currentUsername.toUpperCase();
+    final rawName = _supabase.currentUsername;
+    final isVerified = UserUtils.isVerified(rawName);
     final highScore = _myStats?.highScore ?? StorageService.instance.getHighScore();
     final bestRally = _myStats?.bestRally ?? StorageService.instance.getBestRally();
     final games = _myStats?.gamesPlayed ?? 0;
@@ -615,10 +659,10 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
 
     return Column(
       children: [
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         Container(
-          width: 72,
-          height: 72,
+          width: 68,
+          height: 68,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: cyan.withValues(alpha: 0.15),
@@ -626,17 +670,17 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
             boxShadow: [
               BoxShadow(
                 color: cyan.withValues(alpha: 0.4),
-                blurRadius: 20,
+                blurRadius: 18,
                 spreadRadius: 2,
               ),
             ],
           ),
           child: Center(
             child: Text(
-              name.isNotEmpty ? name[0] : 'P',
+              rawName.isNotEmpty ? rawName[0].toUpperCase() : 'P',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 32,
+                fontSize: 30,
                 fontWeight: FontWeight.w900,
                 shadows: [Shadow(color: cyan, blurRadius: 12)],
               ),
@@ -644,33 +688,71 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          name,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2,
-            shadows: [Shadow(color: cyan, blurRadius: 16)],
-          ),
-        ),
-        Text(
-          _supabase.currentUser?.email ?? 'OFFLINE PILOT PROFILE',
-          style: const TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 1),
-        ),
-        const SizedBox(height: 18),
 
+        // Username + Verified Checkmark
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              rawName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
+            ),
+            if (isVerified) UserUtils.verifiedBadge(size: 20),
+          ],
+        ),
+
+        if (isVerified)
+          Container(
+            margin: const EdgeInsets.only(top: 4, bottom: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0x2200E5FF),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.6)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.verified, size: 12, color: Color(0xFF00E5FF)),
+                SizedBox(width: 4),
+                Text(
+                  'VERIFIED PLAYER',
+                  style: TextStyle(
+                    color: Color(0xFF00E5FF),
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        Text(
+          _supabase.currentUser?.email ?? 'Active Player Profile',
+          style: const TextStyle(color: Colors.white54, fontSize: 11),
+        ),
+        const SizedBox(height: 14),
+
+        // Stats Cards
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             _buildStatCard('HIGH SCORE', '$highScore', cyan),
             _buildStatCard('BEST RALLY', '$bestRally', const Color(0xFFFF71CE)),
             _buildStatCard('GAMES', '$games', Colors.amberAccent),
-            _buildStatCard('WINS', '$wins', const Color(0xFF00FF99)),
+            _buildStatCard('WINS', '$wins', const Color(0xFF00FF88)),
           ],
         ),
         const Spacer(),
 
+        // Bottom Actions: Sync & Log Out
         Row(
           children: [
             Expanded(
@@ -681,7 +763,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
                 icon: Icon(Icons.sync, color: cyan, size: 18),
-                label: Text('SYNC CLOUD', style: TextStyle(color: cyan, fontWeight: FontWeight.bold, fontSize: 12)),
+                label: Text('SYNC STATS', style: TextStyle(color: cyan, fontWeight: FontWeight.bold, fontSize: 12)),
                 onPressed: () async {
                   setState(() => _isLoading = true);
                   await _supabase.syncLocalRecords(
@@ -693,7 +775,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                     setState(() {
                       _myStats = s;
                       _isLoading = false;
-                      _successMessage = 'DATA SYNCHRONIZED';
+                      _successMessage = 'Stats synchronized';
                     });
                   }
                 },
@@ -703,21 +785,15 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
             Expanded(
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0x33FF0055),
-                  foregroundColor: const Color(0xFFFF0055),
-                  side: const BorderSide(color: Color(0xFFFF0055)),
+                  backgroundColor: const Color(0x33FF1744),
+                  foregroundColor: const Color(0xFFFF1744),
+                  side: const BorderSide(color: Color(0xFFFF1744)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                icon: const Icon(Icons.power_settings_new, size: 18),
-                label: const Text('DISCONNECT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                onPressed: () async {
-                  await _supabase.signOut();
-                  if (mounted) {
-                    setState(() {});
-                    Navigator.of(context).pop();
-                  }
-                },
+                icon: const Icon(Icons.logout, size: 18),
+                label: const Text('LOG OUT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                onPressed: _isLoading ? null : _handleLogOut,
               ),
             ),
           ],
@@ -749,7 +825,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
             ),
             const SizedBox(height: 14),
             const Text(
-              'YOUR RECORD ON FILE',
+              'YOUR RECORD',
               style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 2),
             ),
             const SizedBox(height: 6),
@@ -768,12 +844,13 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
         final item = _leaderboard[idx];
         final rankMedal = idx == 0 ? '🥇' : (idx == 1 ? '🥈' : (idx == 2 ? '🥉' : '#${idx + 1}'));
         final isTop3 = idx < 3;
+        final isVerified = UserUtils.isVerified(item.username);
 
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: isTop3 ? cyan.withValues(alpha: 0.1) : const Color(0xFF0C0E24),
+            color: isTop3 ? cyan.withValues(alpha: 0.1) : const Color(0xFF10132C),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isTop3 ? cyan : Colors.white12,
@@ -794,14 +871,21 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                 child: Text(rankMedal, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               ),
               Expanded(
-                child: Text(
-                  item.username.toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13,
-                    letterSpacing: 1.1,
-                  ),
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        item.username,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    if (isVerified) UserUtils.verifiedBadge(size: 14),
+                  ],
                 ),
               ),
               Text(
@@ -838,13 +922,13 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
             color: glowColor,
             fontSize: 10,
             fontWeight: FontWeight.w900,
-            letterSpacing: 1.5,
+            letterSpacing: 1.2,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 5),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0B0D21),
+            color: const Color(0xFF10132C),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: glowColor.withValues(alpha: 0.5)),
             boxShadow: [
@@ -865,7 +949,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                 child: TextField(
                   controller: controller,
                   obscureText: obscureText,
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                   cursorColor: glowColor,
                   decoration: InputDecoration(
                     hintText: hint,
@@ -899,7 +983,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
         boxShadow: [
           BoxShadow(
             color: glowColor.withValues(alpha: 0.5),
-            blurRadius: 18,
+            blurRadius: 16,
             offset: const Offset(0, 3),
           ),
         ],
@@ -922,7 +1006,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
+                  letterSpacing: 1.5,
                   fontSize: 13,
                 ),
               ),
@@ -935,7 +1019,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
       width: 82,
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF0C0E24),
+        color: const Color(0xFF10132C),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.6)),
         boxShadow: [
@@ -956,29 +1040,10 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
+            style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 0.8),
           ),
         ],
       ),
     );
   }
-}
-
-class _CyberGridPainter extends CustomPainter {
-  final Color color;
-  _CyberGridPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1;
-
-    for (double y = 0; y < size.height; y += 8) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -115,7 +115,7 @@ class _UsernamePromptDialogState extends State<UsernamePromptDialog> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Enter your arcade gamer tag to track your scores and rank on the leaderboard:',
+              'Enter a username to track your scores and rank on the leaderboard:',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.4),
             ),
@@ -125,11 +125,11 @@ class _UsernamePromptDialogState extends State<UsernamePromptDialog> {
               autofocus: true,
               style: TextStyle(color: widget.theme.ballColor, fontWeight: FontWeight.bold, fontSize: 16),
               decoration: InputDecoration(
-                hintText: 'e.g. CYBER_PADDLE',
+                hintText: 'e.g. imjustivaan',
                 hintStyle: const TextStyle(color: Colors.white30, fontSize: 14),
                 prefixIcon: Icon(Icons.badge_outlined, color: widget.theme.paddle1Color),
                 suffixIcon: IconButton(
-                  tooltip: 'Random Gamertag',
+                  tooltip: 'Random Username',
                   icon: const Icon(Icons.casino_outlined, color: Colors.white70),
                   onPressed: _generateRandom,
                 ),

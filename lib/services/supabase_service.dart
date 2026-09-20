@@ -42,7 +42,7 @@ class SupabaseService {
 
   SupabaseClient? get client => _initialized ? Supabase.instance.client : null;
   User? get currentUser => client?.auth.currentUser;
-  bool get isLoggedIn => currentUser != null;
+  bool get isLoggedIn => (currentUser != null) || StorageService.instance.isLoggedIn();
 
   String get currentUsername {
     if (!isLoggedIn) {
@@ -138,6 +138,7 @@ class SupabaseService {
     try {
       await client?.auth.signOut();
     } catch (_) {}
+    await StorageService.instance.logout();
   }
 
   // Save game result and sync high scores

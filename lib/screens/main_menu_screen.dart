@@ -1,3 +1,4 @@
+import '../utils/user_utils.dart';
 import '../widgets/username_prompt_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -238,51 +239,60 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
             top: 12,
             right: 14,
             child: SafeArea(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () async {
-                  await AccountDialog.show(context, _theme);
-                  setState(() {});
-                },
-                onLongPress: _editUsername,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.65),
+              child: Builder(
+                builder: (context) {
+                  final isLogged = SupabaseService.instance.isLoggedIn || StorageService.instance.isLoggedIn();
+                  final username = SupabaseService.instance.currentUsername;
+                  final isVerified = UserUtils.isVerified(username);
+
+                  return InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: SupabaseService.instance.isLoggedIn
-                          ? _theme.paddle1Color
-                          : Colors.white24,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        SupabaseService.instance.isLoggedIn
-                            ? Icons.cloud_done
-                            : Icons.account_circle_outlined,
-                        size: 16,
-                        color: SupabaseService.instance.isLoggedIn
-                            ? _theme.paddle1Color
-                            : Colors.white70,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        SupabaseService.instance.currentUsername.toUpperCase(),
-                        style: TextStyle(
-                          color: SupabaseService.instance.isLoggedIn
-                              ? _theme.paddle1Color
-                              : Colors.white70,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.1,
+                    onTap: () async {
+                      await AccountDialog.show(context, _theme);
+                      setState(() {});
+                    },
+                    onLongPress: _editUsername,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF090B1E).withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isLogged ? _theme.paddle1Color : Colors.white24,
                         ),
+                        boxShadow: isLogged
+                            ? [
+                                BoxShadow(
+                                  color: _theme.paddle1Color.withValues(alpha: 0.3),
+                                  blurRadius: 10,
+                                )
+                              ]
+                            : null,
                       ),
-                    ],
-                  ),
-                ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isLogged ? Icons.account_circle : Icons.account_circle_outlined,
+                            size: 16,
+                            color: isLogged ? _theme.paddle1Color : Colors.white70,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            username,
+                            style: TextStyle(
+                              color: isLogged ? _theme.paddle1Color : Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                          if (isVerified) UserUtils.verifiedBadge(size: 15),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),

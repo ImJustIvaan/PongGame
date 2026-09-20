@@ -3,6 +3,16 @@ import '../game/game_theme.dart';
 import '../game/pong_engine.dart';
 
 class StorageService {
+  bool isLoggedIn() => _prefs?.getBool('is_logged_in') ?? false;
+
+  Future<void> setLoggedIn(bool value) async {
+    await _prefs?.setBool('is_logged_in', value);
+  }
+
+  Future<void> logout() async {
+    await _prefs?.setBool('is_logged_in', false);
+  }
+
   String? getUsername() => _prefs?.getString('player_username');
   Future<void> saveUsername(String name) async {
     await _prefs?.setString('player_username', name.trim());
