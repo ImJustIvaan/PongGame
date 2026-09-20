@@ -566,7 +566,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                                   ),
                                   const SizedBox(width: 5),
                                   ConstrainedBox(
-                                    constraints: BoxConstraints(maxWidth: isMobile ? 78 : 140),
+                                    constraints: BoxConstraints(
+                                      maxWidth: isMobile
+                                          ? (screenSize.width * 0.38).clamp(120.0, 160.0)
+                                          : 180,
+                                    ),
                                     child: Text(
                                       isLogged
                                           ? (username.startsWith('@') ? username : '@$username')

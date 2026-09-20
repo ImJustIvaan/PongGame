@@ -365,9 +365,11 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
     const gold = Color(0xFFFFD700);
     const green = Color(0xFF00E676);
 
+    final isMobile = MediaQuery.of(context).size.width < 550;
+
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      insetPadding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 16, vertical: isMobile ? 12 : 20),
       child: Container(
         width: 620,
         constraints: const BoxConstraints(maxHeight: 740),
@@ -388,7 +390,12 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
+              padding: EdgeInsets.fromLTRB(
+                isMobile ? 14 : 24,
+                isMobile ? 14 : 20,
+                isMobile ? 10 : 16,
+                isMobile ? 8 : 12,
+              ),
               child: Row(
                 children: [
                   Container(
@@ -400,7 +407,7 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
                     child: const Icon(Icons.admin_panel_settings, color: red, size: 24),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -408,14 +415,16 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
                           'OWNER ADMIN PANEL',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 16,
+                            fontSize: isMobile ? 14 : 16,
                             fontWeight: FontWeight.w900,
-                            letterSpacing: 1.5,
+                            letterSpacing: isMobile ? 1.0 : 1.5,
                           ),
                         ),
                         Text(
                           'Bans • Verified • Give Skins • Boost Stats (ImJustIvaan)',
-                          style: TextStyle(color: Colors.white54, fontSize: 11),
+                          style: TextStyle(color: Colors.white54, fontSize: isMobile ? 10 : 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -430,7 +439,7 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
 
             // Tab Bar
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
+              margin: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 20),
               decoration: BoxDecoration(
                 color: const Color(0xFF121528),
                 borderRadius: BorderRadius.circular(14),
@@ -438,6 +447,10 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
               ),
               child: TabBar(
                 controller: _tabController,
+                isScrollable: isMobile,
+                tabAlignment: isMobile ? TabAlignment.center : TabAlignment.fill,
+                padding: EdgeInsets.zero,
+                labelPadding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 0),
                 indicator: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   color: red.withValues(alpha: 0.25),
@@ -445,7 +458,11 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
                 ),
                 labelColor: Colors.white,
                 unselectedLabelColor: Colors.white54,
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.5),
+                labelStyle: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: isMobile ? 10.5 : 11,
+                  letterSpacing: 0.5,
+                ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
                 tabs: const [
@@ -461,7 +478,7 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
             // Status message
             if (_statusMessage != null) ...[
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                margin: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 20, vertical: 4),
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
@@ -499,10 +516,10 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildBanTab(red),
-                  _buildVerifyTab(cyan),
-                  _buildGiveSkinsTab(gold),
-                  _buildStatsTab(green),
+                  _buildBanTab(red, isMobile),
+                  _buildVerifyTab(cyan, isMobile),
+                  _buildGiveSkinsTab(gold, isMobile),
+                  _buildStatsTab(green, isMobile),
                 ],
               ),
             ),
@@ -513,9 +530,9 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
   }
 
   // --- TAB 1: BAN USERS ---
-  Widget _buildBanTab(Color accentColor) {
+  Widget _buildBanTab(Color accentColor, bool isMobile) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      padding: EdgeInsets.fromLTRB(isMobile ? 12 : 20, 8, isMobile ? 12 : 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -668,9 +685,9 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
   }
 
   // --- TAB 2: VERIFY USERS ---
-  Widget _buildVerifyTab(Color accentColor) {
+  Widget _buildVerifyTab(Color accentColor, bool isMobile) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      padding: EdgeInsets.fromLTRB(isMobile ? 12 : 20, 8, isMobile ? 12 : 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -784,9 +801,9 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
   }
 
   // --- TAB 3: GIVE SKINS ---
-  Widget _buildGiveSkinsTab(Color accentColor) {
+  Widget _buildGiveSkinsTab(Color accentColor, bool isMobile) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      padding: EdgeInsets.fromLTRB(isMobile ? 12 : 20, 8, isMobile ? 12 : 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -907,13 +924,13 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
   }
 
   // --- TAB 4: ADD STATS (COINS, LEVELS, KILLS, WINS) ---
-  Widget _buildStatsTab(Color accentColor) {
+  Widget _buildStatsTab(Color accentColor, bool isMobile) {
     const green = Color(0xFF00E676);
     const gold = Color(0xFFFFD700);
     const cyan = Color(0xFF00E5FF);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      padding: EdgeInsets.fromLTRB(isMobile ? 12 : 20, 8, isMobile ? 12 : 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
