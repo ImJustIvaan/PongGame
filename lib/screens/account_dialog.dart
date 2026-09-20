@@ -560,10 +560,11 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     final glowColor = widget.theme.paddle1Color;
     final accentPink = widget.theme.paddle2Color;
     final loggedIn = _isLoggedIn;
+    final isMobile = MediaQuery.of(context).size.width < 460;
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      insetPadding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 16, vertical: 20),
       child: Container(
         width: 440,
         decoration: BoxDecoration(
@@ -609,7 +610,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
               ),
 
               Padding(
-                padding: const EdgeInsets.all(22),
+                padding: EdgeInsets.all(isMobile ? 14 : 22),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -793,6 +794,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     return AnimatedBuilder(
       animation: _tabController,
       builder: (context, _) {
+        final isMobile = MediaQuery.of(context).size.width < 460;
         final tabs = _isLoggedIn
             ? ['PROFILE & STATS', 'LEADERBOARD']
             : ['LEADERBOARD', 'SIGN IN', 'SIGN UP'];
@@ -812,7 +814,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                   onTap: () => _tabController.animateTo(idx),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: EdgeInsets.symmetric(vertical: isMobile ? 7 : 8),
                     decoration: BoxDecoration(
                       color: isSelected ? glowColor : Colors.transparent,
                       borderRadius: BorderRadius.circular(10),
@@ -831,9 +833,9 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: isSelected ? Colors.black : Colors.white60,
-                        fontSize: 11,
+                        fontSize: isMobile ? 9.5 : 11,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 1.1,
+                        letterSpacing: isMobile ? 0.4 : 1.1,
                       ),
                     ),
                   ),

@@ -321,7 +321,10 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final double scale = (screenSize.height / 680.0).clamp(0.9, 1.55);
+    final isMobile = screenSize.width < 640;
+    final double scale = isMobile
+        ? (screenSize.width / 400.0).clamp(0.75, 0.95)
+        : (screenSize.height / 680.0).clamp(0.9, 1.55);
 
     return Scaffold(
       backgroundColor: widget.theme.backgroundColor,
@@ -375,8 +378,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               SafeArea(
                 child: Padding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: (20 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                    vertical: (12 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                    horizontal: isMobile ? 8 : (20 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                    vertical: isMobile ? 6 : (12 * scale.clamp(1.0, 1.3)).roundToDouble(),
                   ),
                   child: Column(
                     children: [
@@ -385,10 +388,12 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
+                            icon: Icon(Icons.arrow_back_ios_new, color: Colors.white70, size: isMobile ? 18 : 22),
+                            padding: EdgeInsets.all(isMobile ? 4 : 8),
+                            constraints: isMobile ? const BoxConstraints() : null,
                             onPressed: () => Navigator.of(context).pop(),
                           ),
-                          _buildScoreHeader(scale),
+                          _buildScoreHeader(scale, isMobile),
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -396,8 +401,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                 GestureDetector(
                                   onTap: _toggleOwnerAutoPlay,
                                   child: Container(
-                                    margin: const EdgeInsets.only(right: 8),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    margin: EdgeInsets.only(right: isMobile ? 4 : 8),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: isMobile ? 6 : 10,
+                                      vertical: isMobile ? 4 : 6,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: _engine.ownerAutoPlay
                                           ? const Color(0xFF00E5FF).withValues(alpha: 0.22)
@@ -424,23 +432,25 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                       children: [
                                         Icon(
                                           Icons.bolt,
-                                          size: 15,
+                                          size: isMobile ? 14 : 15,
                                           color: _engine.ownerAutoPlay
                                               ? const Color(0xFF00E5FF)
                                               : Colors.white60,
                                         ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          _engine.ownerAutoPlay ? 'AUTO ON' : 'AUTO OFF',
-                                          style: TextStyle(
-                                            color: _engine.ownerAutoPlay
-                                                ? const Color(0xFF00E5FF)
-                                                : Colors.white70,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 1.0,
+                                        if (!isMobile) ...[
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            _engine.ownerAutoPlay ? 'AUTO ON' : 'AUTO OFF',
+                                            style: TextStyle(
+                                              color: _engine.ownerAutoPlay
+                                                  ? const Color(0xFF00E5FF)
+                                                  : Colors.white70,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 1.0,
+                                            ),
                                           ),
-                                        ),
+                                        ],
                                       ],
                                     ),
                                   ),
@@ -449,19 +459,25 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                 valueListenable: FullscreenService.instance.isFullScreen,
                                 builder: (context, isFs, _) {
                                   return IconButton(
-                                    tooltip: isFs ? 'Exit Fullscreen (F11)' : 'Fullscreen (F11)',
+                                    tooltip: isFs ? 'Exit Fullscreen' : 'Fullscreen',
+                                    padding: EdgeInsets.all(isMobile ? 4 : 8),
+                                    constraints: isMobile ? const BoxConstraints() : null,
                                     icon: Icon(
                                       isFs ? Icons.fullscreen_exit : Icons.fullscreen,
                                       color: Colors.white70,
+                                      size: isMobile ? 18 : 22,
                                     ),
                                     onPressed: () => FullscreenService.instance.toggle(),
                                   );
                                 },
                               ),
                               IconButton(
+                                padding: EdgeInsets.all(isMobile ? 4 : 8),
+                                constraints: isMobile ? const BoxConstraints() : null,
                                 icon: Icon(
                                   _engine.state == GameState.paused ? Icons.play_arrow : Icons.pause,
                                   color: Colors.white70,
+                                  size: isMobile ? 18 : 22,
                                 ),
                                 onPressed: () => _engine.togglePause(),
                               ),
@@ -788,25 +804,26 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     return 'PLAYER 2 WINS!';
   }
 
-  Widget _buildScoreHeader(double scale) {
+  Widget _buildScoreHeader(double scale, bool isMobile) {
     if (widget.mode == GameMode.practice) {
       return Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             'SCORE: ${_engine.currentRally}',
             style: TextStyle(
               color: widget.theme.ballColor,
-              fontSize: (24 * scale).roundToDouble(),
+              fontSize: (isMobile ? 16 : 24 * scale).roundToDouble(),
               fontWeight: FontWeight.bold,
-              letterSpacing: 2 * scale,
+              letterSpacing: isMobile ? 1.0 : 2 * scale,
             ),
           ),
-          SizedBox(width: 14 * scale),
+          SizedBox(width: isMobile ? 8 : 14 * scale),
           Text(
             'BEST: ${_engine.maxRally}',
             style: TextStyle(
               color: widget.theme.paddle1Color,
-              fontSize: (16 * scale).roundToDouble(),
+              fontSize: (isMobile ? 12 : 16 * scale).roundToDouble(),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -818,38 +835,43 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       final myName = SupabaseService.instance.currentUsername.isNotEmpty
           ? SupabaseService.instance.currentUsername
           : 'YOU';
-      final oppName = widget.opponentUsername ?? 'OPPONENT';
+      final oppName = widget.opponentUsername ?? 'OPP';
       final p1Name = widget.isOnlineHost ? myName : oppName;
       final p2Name = widget.isOnlineHost ? oppName : myName;
 
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            p1Name,
-            style: TextStyle(
-              color: widget.theme.paddle1Color,
-              fontSize: (13 * scale).roundToDouble(),
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.0,
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: isMobile ? 52 : 90),
+            child: Text(
+              p1Name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: widget.theme.paddle1Color,
+                fontSize: (isMobile ? 11 : 13 * scale).roundToDouble(),
+                fontWeight: FontWeight.bold,
+                letterSpacing: isMobile ? 0.5 : 1.0,
+              ),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: isMobile ? 5 : 10),
           Text(
             '${_engine.score1}',
             style: TextStyle(
               color: widget.theme.paddle1Color,
-              fontSize: (30 * scale).roundToDouble(),
+              fontSize: (isMobile ? 22 : 30 * scale).roundToDouble(),
               fontWeight: FontWeight.w900,
             ),
           ),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: (12 * scale).roundToDouble()),
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : (12 * scale).roundToDouble()),
             child: Text(
               ':',
               style: TextStyle(
                 color: widget.theme.tableLineColor.withValues(alpha: 0.8),
-                fontSize: (26 * scale).roundToDouble(),
+                fontSize: (isMobile ? 18 : 26 * scale).roundToDouble(),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -858,18 +880,23 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
             '${_engine.score2}',
             style: TextStyle(
               color: widget.theme.paddle2Color,
-              fontSize: (30 * scale).roundToDouble(),
+              fontSize: (isMobile ? 22 : 30 * scale).roundToDouble(),
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(width: 10),
-          Text(
-            p2Name,
-            style: TextStyle(
-              color: widget.theme.paddle2Color,
-              fontSize: (13 * scale).roundToDouble(),
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.0,
+          SizedBox(width: isMobile ? 5 : 10),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: isMobile ? 52 : 90),
+            child: Text(
+              p2Name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: widget.theme.paddle2Color,
+                fontSize: (isMobile ? 11 : 13 * scale).roundToDouble(),
+                fontWeight: FontWeight.bold,
+                letterSpacing: isMobile ? 0.5 : 1.0,
+              ),
             ),
           ),
         ],
@@ -877,22 +904,23 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     }
 
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           '${_engine.score1}',
           style: TextStyle(
             color: widget.theme.paddle1Color,
-            fontSize: (34 * scale).roundToDouble(),
+            fontSize: (isMobile ? 24 : 34 * scale).roundToDouble(),
             fontWeight: FontWeight.w900,
           ),
         ),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: (16 * scale).roundToDouble()),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : (16 * scale).roundToDouble()),
           child: Text(
             ':',
             style: TextStyle(
               color: widget.theme.tableLineColor.withValues(alpha: 0.8),
-              fontSize: (28 * scale).roundToDouble(),
+              fontSize: (isMobile ? 20 : 28 * scale).roundToDouble(),
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -901,7 +929,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           '${_engine.score2}',
           style: TextStyle(
             color: widget.theme.paddle2Color,
-            fontSize: (34 * scale).roundToDouble(),
+            fontSize: (isMobile ? 24 : 34 * scale).roundToDouble(),
             fontWeight: FontWeight.w900,
           ),
         ),

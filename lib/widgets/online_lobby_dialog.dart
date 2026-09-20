@@ -264,10 +264,11 @@ class _OnlineLobbyDialogState extends State<OnlineLobbyDialog> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 460;
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      insetPadding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 16, vertical: 20),
       child: Container(
         width: 500,
         constraints: const BoxConstraints(maxHeight: 620),
@@ -350,7 +351,7 @@ class _OnlineLobbyDialogState extends State<OnlineLobbyDialog> with SingleTicker
                 child: !_isLoggedIn
                     ? _buildLoginView()
                     : SingleChildScrollView(
-                        padding: const EdgeInsets.all(18),
+                        padding: EdgeInsets.all(isMobile ? 12 : 18),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [

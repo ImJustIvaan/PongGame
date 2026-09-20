@@ -193,8 +193,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     final highScore = StorageService.instance.getHighScore();
     final bestRally = StorageService.instance.getBestRally();
     final screenSize = MediaQuery.of(context).size;
-    // Responsive scale: 1.0 for default window (680h), scaling up to 1.5x on 1080p+ fullscreen
-    final double scale = (screenSize.height / 680.0).clamp(0.85, 1.55);
+    final isMobile = screenSize.width < 640 || screenSize.height < 600;
+    // Responsive scale: 1.0 for default window (680h), scaling up to 1.5x on 1080p+ fullscreen, compact on mobile
+    final double scale = isMobile
+        ? (screenSize.width / 400.0).clamp(0.78, 0.96)
+        : (screenSize.height / 680.0).clamp(0.85, 1.55);
 
     return Scaffold(
       backgroundColor: _theme.backgroundColor,
@@ -215,8 +218,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
             child: Center(
               child: SingleChildScrollView(
                 padding: EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: (16 * scale).roundToDouble(),
+                  horizontal: isMobile ? 16 : 24,
+                  vertical: isMobile ? 54 : (18 * scale).roundToDouble(),
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -227,31 +230,31 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: _theme.ballColor,
-                        fontSize: (38 * scale).roundToDouble(),
+                        fontSize: isMobile ? 26 : (38 * scale).roundToDouble(),
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 3 * scale,
+                        letterSpacing: isMobile ? 2.0 : 3.0 * scale,
                         shadows: _theme.hasGlow
                             ? [
                                 Shadow(
                                   color: _theme.paddle1Color,
-                                  blurRadius: 28 * scale,
+                                  blurRadius: (isMobile ? 18 : 28 * scale).roundToDouble(),
                                 )
                               ]
                             : null,
                       ),
                     ),
-                    SizedBox(height: (4 * scale).roundToDouble()),
+                    SizedBox(height: isMobile ? 2 : (4 * scale).roundToDouble()),
                     Text(
                       'Are you game?',
                       style: TextStyle(
                         color: _theme.paddle1Color,
-                        fontSize: (15 * scale).roundToDouble(),
+                        fontSize: isMobile ? 12.5 : (15 * scale).roundToDouble(),
                         fontStyle: FontStyle.italic,
                         fontWeight: FontWeight.w600,
-                        letterSpacing: 2 * scale,
+                        letterSpacing: isMobile ? 1.5 : 2.0 * scale,
                       ),
                     ),
-                    SizedBox(height: (30 * scale).roundToDouble()),
+                    SizedBox(height: isMobile ? 16 : (28 * scale).roundToDouble()),
 
                     // Play Buttons
                     _buildPlayButton(
@@ -260,9 +263,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       icon: Icons.person,
                       color: _theme.paddle1Color,
                       scale: scale,
+                      isMobile: isMobile,
                       onTap: () => _startGame(GameMode.singlePlayer),
                     ),
-                    SizedBox(height: (12 * scale).roundToDouble()),
+                    SizedBox(height: isMobile ? 8 : (12 * scale).roundToDouble()),
 
                     _buildPlayButton(
                       title: 'ONLINE 1V1  (MULTIPLAYER)',
@@ -270,9 +274,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       icon: Icons.public,
                       color: const Color(0xFF00FF88),
                       scale: scale,
+                      isMobile: isMobile,
                       onTap: () => _openOnlineMultiplayer(),
                     ),
-                    SizedBox(height: (12 * scale).roundToDouble()),
+                    SizedBox(height: isMobile ? 8 : (12 * scale).roundToDouble()),
 
                     _buildPlayButton(
                       title: '2 PLAYERS  (LOCAL)',
@@ -280,9 +285,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       icon: Icons.people,
                       color: _theme.paddle2Color,
                       scale: scale,
+                      isMobile: isMobile,
                       onTap: () => _startGame(GameMode.twoPlayer),
                     ),
-                    SizedBox(height: (12 * scale).roundToDouble()),
+                    SizedBox(height: isMobile ? 8 : (12 * scale).roundToDouble()),
 
                     _buildPlayButton(
                       title: 'PRACTICE RALLY',
@@ -290,31 +296,34 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       icon: Icons.fitness_center,
                       color: _theme.ballColor,
                       scale: scale,
+                      isMobile: isMobile,
                       onTap: () => _startGame(GameMode.practice),
                     ),
-                    SizedBox(height: (26 * scale).roundToDouble()),
+                    SizedBox(height: isMobile ? 14 : (24 * scale).roundToDouble()),
 
                     // Difficulty & Target Score Selectors
-                    _buildOptionsRow(scale),
+                    _buildOptionsRow(scale, isMobile, screenSize),
 
-                    SizedBox(height: (22 * scale).roundToDouble()),
+                    SizedBox(height: isMobile ? 14 : (20 * scale).roundToDouble()),
 
-                    // Bottom Bar: Theme switcher, sound toggle, skins, stats
+                    // Bottom Bar: Theme switcher, skins, leaderboard, sound
                     Wrap(
                       alignment: WrapAlignment.center,
-                      spacing: (10 * scale).roundToDouble(),
-                      runSpacing: (8 * scale).roundToDouble(),
+                      spacing: isMobile ? 6 : (10 * scale).roundToDouble(),
+                      runSpacing: isMobile ? 6 : (8 * scale).roundToDouble(),
                       children: [
                         _buildIconButton(
                           icon: Icons.palette_outlined,
                           label: _theme.name,
                           scale: scale,
+                          isMobile: isMobile,
                           onPressed: _showThemePicker,
                         ),
                         _buildIconButton(
                           icon: Icons.style,
                           label: 'SKINS',
                           scale: scale,
+                          isMobile: isMobile,
                           onPressed: () async {
                             await SkinShopDialog.show(context, _theme);
                             setState(() {});
@@ -324,6 +333,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                           icon: Icons.leaderboard_outlined,
                           label: 'LEADERBOARD',
                           scale: scale,
+                          isMobile: isMobile,
                           onPressed: () async {
                             final isLogged = StorageService.instance.isLoggedIn() || SupabaseService.instance.isLoggedIn;
                             final targetTab = isLogged ? 1 : 0;
@@ -335,6 +345,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                           icon: _soundEnabled ? Icons.volume_up : Icons.volume_off,
                           label: _soundEnabled ? 'SOUND ON' : 'MUTED',
                           scale: scale,
+                          isMobile: isMobile,
                           onPressed: () {
                             setState(() {
                               _soundEnabled = !_soundEnabled;
@@ -343,21 +354,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                             });
                           },
                         ),
-                        ValueListenableBuilder<bool>(
-                          valueListenable: FullscreenService.instance.isFullScreen,
-                          builder: (context, isFs, _) {
-                            return _buildIconButton(
-                              icon: isFs ? Icons.fullscreen_exit : Icons.fullscreen,
-                              label: isFs ? 'EXIT FULL' : 'FULLSCREEN',
-                              scale: scale,
-                              onPressed: () => FullscreenService.instance.toggle(),
-                            );
-                          },
-                        ),
                       ],
                     ),
 
-                    SizedBox(height: (16 * scale).roundToDouble()),
+                    SizedBox(height: isMobile ? 10 : (16 * scale).roundToDouble()),
 
                     // Stats summary
                     Text(
@@ -365,8 +365,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       '${highScore > 0 || bestRally > 0 ? "  •  BEST SCORE: $highScore  •  RALLY: $bestRally" : ""}',
                       style: TextStyle(
                         color: Colors.white60,
-                        fontSize: (12 * scale).roundToDouble(),
-                        letterSpacing: 1.5 * scale,
+                        fontSize: isMobile ? 11 : (12 * scale).roundToDouble(),
+                        letterSpacing: isMobile ? 1.0 : 1.5 * scale,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -376,251 +376,224 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
             ),
           ),
 
-          // Top-left Fullscreen toggle button
+          // Unified Responsive Top Navigation & Stats Bar
           Positioned(
-            top: 12,
-            left: 14,
+            top: 10,
+            left: isMobile ? 10 : 16,
+            right: isMobile ? 10 : 16,
             child: SafeArea(
-              child: ValueListenableBuilder<bool>(
-                valueListenable: FullscreenService.instance.isFullScreen,
-                builder: (context, isFs, _) {
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () => FullscreenService.instance.toggle(),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                        vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF090B1E).withValues(alpha: 0.85),
+              child: Row(
+                children: [
+                  // Fullscreen toggle (icon-only on mobile, icon+label on desktop)
+                  ValueListenableBuilder<bool>(
+                    valueListenable: FullscreenService.instance.isFullScreen,
+                    builder: (context, isFs, _) {
+                      return InkWell(
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white24),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isFs ? Icons.fullscreen_exit : Icons.fullscreen,
-                            size: (16 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                            color: _theme.paddle1Color,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            isFs ? 'EXIT' : 'FULLSCREEN',
-                            style: TextStyle(
-                              color: _theme.paddle1Color,
-                              fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // Top-right Account / Profile button
-          Positioned(
-            top: 12,
-            right: 14,
-            child: SafeArea(
-              child: Builder(
-                builder: (context) {
-                  final isLogged = SupabaseService.instance.isLoggedIn || StorageService.instance.isLoggedIn();
-                  final username = SupabaseService.instance.currentUsername;
-                  final isVerified = UserUtils.isVerified(username);
-
-                  final isOwner = UserUtils.isOwner(username);
-
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Level & Coins Pill
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                          vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF090B1E).withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6)),
-                          boxShadow: const [
-                            BoxShadow(color: Color(0x22FFD700), blurRadius: 8, spreadRadius: 1),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.bolt, size: 14, color: Color(0xFF00FF88)),
-                            const SizedBox(width: 3),
-                            Text(
-                              'LV. ${StorageService.instance.getLevel()}',
-                              style: TextStyle(
-                                color: const Color(0xFF00FF88),
-                                fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text('•', style: TextStyle(color: Colors.white30, fontSize: 10)),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.monetization_on, size: 14, color: Color(0xFFFFD700)),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${StorageService.instance.getCoins()}',
-                              style: TextStyle(
-                                color: const Color(0xFFFFD700),
-                                fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Skins Wardrobe Button
-                      InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () async {
-                          await SkinShopDialog.show(context, _theme);
-                          setState(() {});
-                        },
+                        onTap: () => FullscreenService.instance.toggle(),
                         child: Container(
                           padding: EdgeInsets.symmetric(
-                            horizontal: (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                            vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                            horizontal: isMobile ? 8 : (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                            vertical: isMobile ? 6 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
                           ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF090B1E).withValues(alpha: 0.85),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.7)),
-                            boxShadow: const [
-                              BoxShadow(color: Color(0x2200E5FF), blurRadius: 8, spreadRadius: 1),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.palette, size: 14, color: Color(0xFF00E5FF)),
-                              const SizedBox(width: 4),
-                              Text(
-                                'SKINS',
-                                style: TextStyle(
-                                  color: const Color(0xFF00E5FF),
-                                  fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      if (isOwner) ...[
-                        InkWell(
-                          borderRadius: BorderRadius.circular(20),
-                          onTap: () async {
-                            await AdminPanelDialog.show(context, _theme);
-                            setState(() {});
-                          },
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                              vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE50914).withValues(alpha: 0.25),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFFFF1744)),
-                              boxShadow: const [
-                                BoxShadow(color: Color(0x66FF1744), blurRadius: 10, spreadRadius: 1),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.admin_panel_settings, size: 15, color: Color(0xFFFF1744)),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'ADMIN',
-                                  style: TextStyle(
-                                    color: const Color(0xFFFF1744),
-                                    fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () async {
-                          await AccountDialog.show(context, _theme);
-                          setState(() {});
-                        },
-                        onLongPress: () async {
-                          await AccountDialog.show(context, _theme);
-                          setState(() {});
-                        },
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: (12 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                            vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF090B1E).withValues(alpha: 0.85),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: isLogged ? _theme.paddle1Color : Colors.white24,
-                            ),
-                            boxShadow: isLogged
-                                ? [
-                                    BoxShadow(
-                                      color: _theme.paddle1Color.withValues(alpha: 0.3),
-                                      blurRadius: 10,
-                                    )
-                                  ]
-                                : null,
+                            border: Border.all(color: Colors.white24),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                isLogged ? Icons.account_circle : Icons.account_circle_outlined,
-                                size: 16,
-                                color: isLogged ? _theme.paddle1Color : Colors.white70,
+                                isFs ? Icons.fullscreen_exit : Icons.fullscreen,
+                                size: isMobile ? 16 : (16 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                color: _theme.paddle1Color,
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                username,
-                                style: TextStyle(
-                                  color: isLogged ? _theme.paddle1Color : Colors.white70,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.1,
+                              if (!isMobile) ...[
+                                const SizedBox(width: 5),
+                                Text(
+                                  isFs ? 'EXIT' : 'FULLSCREEN',
+                                  style: TextStyle(
+                                    color: _theme.paddle1Color,
+                                    fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.0,
+                                  ),
                                 ),
-                              ),
-                              if (isVerified) UserUtils.verifiedBadge(size: 15),
+                              ],
                             ],
                           ),
                         ),
-                      ),
-                    ],
-                  );
-                },
+                      );
+                    },
+                  ),
+
+                  const Spacer(),
+
+                  Builder(
+                    builder: (context) {
+                      final isLogged = SupabaseService.instance.isLoggedIn || StorageService.instance.isLoggedIn();
+                      final username = SupabaseService.instance.currentUsername;
+                      final isVerified = UserUtils.isVerified(username);
+                      final isOwner = UserUtils.isOwner(username);
+
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Level & Coins Pill
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 8 : (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                              vertical: isMobile ? 6 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF090B1E).withValues(alpha: 0.85),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6)),
+                              boxShadow: const [
+                                BoxShadow(color: Color(0x22FFD700), blurRadius: 8, spreadRadius: 1),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.bolt, size: 14, color: Color(0xFF00FF88)),
+                                const SizedBox(width: 3),
+                                Text(
+                                  isMobile ? '${StorageService.instance.getLevel()}' : 'LV. ${StorageService.instance.getLevel()}',
+                                  style: TextStyle(
+                                    color: const Color(0xFF00FF88),
+                                    fontSize: isMobile ? 11 : (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(width: isMobile ? 5 : 8),
+                                const Text('•', style: TextStyle(color: Colors.white30, fontSize: 10)),
+                                SizedBox(width: isMobile ? 5 : 8),
+                                const Icon(Icons.monetization_on, size: 14, color: Color(0xFFFFD700)),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${StorageService.instance.getCoins()}',
+                                  style: TextStyle(
+                                    color: const Color(0xFFFFD700),
+                                    fontSize: isMobile ? 11 : (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(width: isMobile ? 6 : 8),
+
+                          // If Owner: Admin Button
+                          if (isOwner) ...[
+                            InkWell(
+                              borderRadius: BorderRadius.circular(20),
+                              onTap: () async {
+                                await AdminPanelDialog.show(context, _theme);
+                                setState(() {});
+                              },
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isMobile ? 7 : (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                  vertical: isMobile ? 6 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE50914).withValues(alpha: 0.25),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: const Color(0xFFFF1744)),
+                                  boxShadow: const [
+                                    BoxShadow(color: Color(0x66FF1744), blurRadius: 10, spreadRadius: 1),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.admin_panel_settings, size: 15, color: Color(0xFFFF1744)),
+                                    if (!isMobile) ...[
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'ADMIN',
+                                        style: TextStyle(
+                                          color: const Color(0xFFFF1744),
+                                          fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: isMobile ? 6 : 8),
+                          ],
+
+                          // Profile / Login Button
+                          InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () async {
+                              await AccountDialog.show(context, _theme);
+                              setState(() {});
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 9 : (12 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                vertical: isMobile ? 6 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF090B1E).withValues(alpha: 0.85),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isLogged ? _theme.paddle1Color : Colors.white24,
+                                ),
+                                boxShadow: isLogged
+                                    ? [
+                                        BoxShadow(
+                                          color: _theme.paddle1Color.withValues(alpha: 0.3),
+                                          blurRadius: 10,
+                                        )
+                                      ]
+                                    : null,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isLogged ? Icons.account_circle : Icons.account_circle_outlined,
+                                    size: isMobile ? 15 : 16,
+                                    color: isLogged ? _theme.paddle1Color : Colors.white70,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  ConstrainedBox(
+                                    constraints: BoxConstraints(maxWidth: isMobile ? 78 : 140),
+                                    child: Text(
+                                      isLogged
+                                          ? (username.startsWith('@') ? username : '@$username')
+                                          : (isMobile ? 'LOGIN' : 'SIGN IN'),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        color: isLogged ? _theme.paddle1Color : Colors.white70,
+                                        fontSize: isMobile ? 11 : 12,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.8,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isVerified) ...[
+                                    const SizedBox(width: 3),
+                                    UserUtils.verifiedBadge(size: isMobile ? 13 : 15),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ),
@@ -635,19 +608,23 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     required IconData icon,
     required Color color,
     required double scale,
+    required bool isMobile,
     required VoidCallback onTap,
   }) {
-    final btnWidth = (320 * scale).clamp(320.0, 480.0);
+    final screenSize = MediaQuery.of(context).size;
+    final btnWidth = isMobile
+        ? (screenSize.width - 32).clamp(260.0, 390.0)
+        : (320 * scale).clamp(320.0, 480.0);
     return Container(
       width: btnWidth,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16 * scale),
+        borderRadius: BorderRadius.circular(isMobile ? 12 : 16 * scale),
         boxShadow: _theme.hasGlow
             ? [
                 BoxShadow(
                   color: color.withValues(alpha: 0.25),
-                  blurRadius: 14 * scale,
-                  offset: Offset(0, 4 * scale),
+                  blurRadius: isMobile ? 8 : 14 * scale,
+                  offset: Offset(0, isMobile ? 2 : 4 * scale),
                 )
               ]
             : null,
@@ -657,16 +634,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
           backgroundColor: color,
           foregroundColor: Colors.black,
           padding: EdgeInsets.symmetric(
-            vertical: (16 * scale).roundToDouble(),
-            horizontal: (20 * scale).roundToDouble(),
+            vertical: isMobile ? 11 : (16 * scale).roundToDouble(),
+            horizontal: isMobile ? 14 : (20 * scale).roundToDouble(),
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16 * scale)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isMobile ? 12 : 16 * scale)),
         ),
         onPressed: onTap,
         child: Row(
           children: [
-            Icon(icon, size: (28 * scale).roundToDouble(), color: Colors.black),
-            SizedBox(width: (16 * scale).roundToDouble()),
+            Icon(icon, size: isMobile ? 22 : (28 * scale).roundToDouble(), color: Colors.black),
+            SizedBox(width: isMobile ? 12 : (16 * scale).roundToDouble()),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -674,16 +651,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: (16 * scale).roundToDouble(),
+                      fontSize: isMobile ? 13.5 : (16 * scale).roundToDouble(),
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
+                      letterSpacing: 1.0,
                       color: Colors.black,
                     ),
                   ),
                   Text(
                     subtitle,
                     style: TextStyle(
-                      fontSize: (11 * scale).roundToDouble(),
+                      fontSize: isMobile ? 10 : (11 * scale).roundToDouble(),
                       fontWeight: FontWeight.w600,
                       color: Colors.black.withValues(alpha: 0.7),
                     ),
@@ -691,24 +668,26 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios, size: (16 * scale).roundToDouble(), color: Colors.black54),
+            Icon(Icons.arrow_forward_ios, size: isMobile ? 13 : (16 * scale).roundToDouble(), color: Colors.black54),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildOptionsRow(double scale) {
-    final optWidth = (320 * scale).clamp(320.0, 480.0);
+  Widget _buildOptionsRow(double scale, bool isMobile, Size screenSize) {
+    final optWidth = isMobile
+        ? (screenSize.width - 32).clamp(260.0, 390.0)
+        : (320 * scale).clamp(320.0, 480.0);
     return Container(
       width: optWidth,
       padding: EdgeInsets.symmetric(
-        horizontal: (14 * scale).roundToDouble(),
-        vertical: (12 * scale).roundToDouble(),
+        horizontal: isMobile ? 12 : (14 * scale).roundToDouble(),
+        vertical: isMobile ? 8 : (12 * scale).roundToDouble(),
       ),
       decoration: BoxDecoration(
         color: Colors.black45,
-        borderRadius: BorderRadius.circular(16 * scale),
+        borderRadius: BorderRadius.circular(isMobile ? 12 : 16 * scale),
         border: Border.all(color: Colors.white12),
       ),
       child: Column(
@@ -716,12 +695,24 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('AI LEVEL:', style: TextStyle(color: Colors.white70, fontSize: (12 * scale).roundToDouble(), fontWeight: FontWeight.bold)),
+              Text(
+                'AI LEVEL:',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: isMobile ? 11 : (12 * scale).roundToDouble(),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               DropdownButton<AiDifficulty>(
                 value: _difficulty,
                 dropdownColor: const Color(0xFF151520),
-                style: TextStyle(color: _theme.paddle1Color, fontWeight: FontWeight.bold, fontSize: (13 * scale).roundToDouble()),
+                style: TextStyle(
+                  color: _theme.paddle1Color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: isMobile ? 11.5 : (13 * scale).roundToDouble(),
+                ),
                 underline: const SizedBox(),
+                isDense: true,
                 items: AiDifficulty.values.map((d) {
                   return DropdownMenuItem(
                     value: d,
@@ -737,16 +728,28 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
               ),
             ],
           ),
-          Divider(color: Colors.white10, height: (14 * scale).roundToDouble()),
+          Divider(color: Colors.white10, height: isMobile ? 10 : (14 * scale).roundToDouble()),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('FIRST TO:', style: TextStyle(color: Colors.white70, fontSize: (12 * scale).roundToDouble(), fontWeight: FontWeight.bold)),
+              Text(
+                'FIRST TO:',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: isMobile ? 11 : (12 * scale).roundToDouble(),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               DropdownButton<int>(
                 value: _targetScore,
                 dropdownColor: const Color(0xFF151520),
-                style: TextStyle(color: _theme.paddle1Color, fontWeight: FontWeight.bold, fontSize: (13 * scale).roundToDouble()),
+                style: TextStyle(
+                  color: _theme.paddle1Color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: isMobile ? 11.5 : (13 * scale).roundToDouble(),
+                ),
                 underline: const SizedBox(),
+                isDense: true,
                 items: [5, 7, 11].map((pts) {
                   return DropdownMenuItem<int>(
                     value: pts,
@@ -771,23 +774,24 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     required IconData icon,
     required String label,
     required double scale,
+    required bool isMobile,
     required VoidCallback onPressed,
   }) {
     return OutlinedButton.icon(
       style: OutlinedButton.styleFrom(
         side: const BorderSide(color: Colors.white24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12 * scale)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isMobile ? 10 : 12 * scale)),
         padding: EdgeInsets.symmetric(
-          horizontal: (14 * scale).roundToDouble(),
-          vertical: (10 * scale).roundToDouble(),
+          horizontal: isMobile ? 10 : (14 * scale).roundToDouble(),
+          vertical: isMobile ? 6 : (10 * scale).roundToDouble(),
         ),
       ),
-      icon: Icon(icon, size: (18 * scale).roundToDouble(), color: Colors.white),
+      icon: Icon(icon, size: isMobile ? 14 : (18 * scale).roundToDouble(), color: Colors.white),
       label: Text(
         label,
         style: TextStyle(
           color: Colors.white,
-          fontSize: (12 * scale).roundToDouble(),
+          fontSize: isMobile ? 10 : (12 * scale).roundToDouble(),
           fontWeight: FontWeight.bold,
         ),
       ),
