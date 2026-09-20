@@ -14,6 +14,7 @@ class PlayerStats {
   final int wins;
   final int level;
   final int coins;
+  final int kills;
 
   PlayerStats({
     required this.username,
@@ -23,6 +24,7 @@ class PlayerStats {
     required this.wins,
     this.level = 1,
     this.coins = 0,
+    this.kills = 0,
   });
 
   int get losses => (gamesPlayed - wins).clamp(0, gamesPlayed);
@@ -32,14 +34,17 @@ class PlayerStats {
     final wins = (map['wins'] as num?)?.toInt() ?? 0;
     final level = (map['level'] as num?)?.toInt() ?? (1 + wins);
     final coins = (map['coins'] as num?)?.toInt() ?? (wins * 50);
+    final highScore = (map['high_score'] as num?)?.toInt() ?? 0;
+    final kills = (map['kills'] as num?)?.toInt() ?? highScore;
     return PlayerStats(
       username: map['username'] as String? ?? 'Player',
-      highScore: (map['high_score'] as num?)?.toInt() ?? 0,
+      highScore: highScore,
       bestRally: (map['best_rally'] as num?)?.toInt() ?? 0,
       gamesPlayed: (map['games_played'] as num?)?.toInt() ?? 0,
       wins: wins,
       level: level,
       coins: coins,
+      kills: kills,
     );
   }
 }
@@ -279,13 +284,15 @@ class SupabaseService {
     await StorageService.instance.logout();
   }
 
-  // Save game result and sync high scores, levels, and coins
+  // Save game result and sync high scores, levels, coins, kills, and wins
   Future<void> saveGameResult({
     required bool won,
     required int score,
     required int rally,
     int? level,
     int? coins,
+    int? kills,
+    int? wins,
   }) async {
     final user = currentUser;
     if (user == null || client == null) return;
@@ -295,13 +302,14 @@ class SupabaseService {
       final currentStats = await fetchMyStats();
 
       final newGamesPlayed = (currentStats?.gamesPlayed ?? 0) + 1;
-      final newWins = (currentStats?.wins ?? 0) + (won ? 1 : 0);
+      final newWins = wins ?? ((currentStats?.wins ?? 0) + (won ? 1 : 0));
       final newHighScore = [currentStats?.highScore ?? 0, score].reduce((a, b) => a > b ? a : b);
       final newBestRally = [currentStats?.bestRally ?? 0, rally].reduce((a, b) => a > b ? a : b);
       final newLevel = level ?? (currentStats?.level ?? (1 + newWins));
       final newCoins = coins ?? (currentStats?.coins ?? (newWins * 50));
+      final newKills = kills ?? ((currentStats?.kills ?? 0) + score);
 
-      final payload = {
+      final payload = <String, dynamic>{
         'user_id': userId,
         'username': currentUsername,
         'high_score': newHighScore,
@@ -310,15 +318,21 @@ class SupabaseService {
         'wins': newWins,
         'level': newLevel,
         'coins': newCoins,
+        'kills': newKills,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       };
 
       try {
         await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
       } catch (_) {
-        payload.remove('level');
-        payload.remove('coins');
-        await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+        payload.remove('kills');
+        try {
+          await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+        } catch (_) {
+          payload.remove('level');
+          payload.remove('coins');
+          await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+        }
       }
     } catch (e) {
       debugPrint('Error syncing game result to Supabase: $e');
@@ -326,7 +340,14 @@ class SupabaseService {
   }
 
   // Sync local records on login
-  Future<void> syncLocalRecords(int localHighScore, int localBestRally, {int? localLevel, int? localCoins}) async {
+  Future<void> syncLocalRecords(
+    int localHighScore,
+    int localBestRally, {
+    int? localLevel,
+    int? localCoins,
+    int? localKills,
+    int? localWins,
+  }) async {
     final user = currentUser;
     if (user == null || client == null) return;
 
@@ -336,25 +357,33 @@ class SupabaseService {
       final mergedBestRally = [currentStats?.bestRally ?? 0, localBestRally].reduce((a, b) => a > b ? a : b);
       final mergedLevel = [currentStats?.level ?? 1, localLevel ?? 1].reduce((a, b) => a > b ? a : b);
       final mergedCoins = [currentStats?.coins ?? 0, localCoins ?? 0].reduce((a, b) => a > b ? a : b);
+      final mergedKills = [currentStats?.kills ?? 0, localKills ?? 0].reduce((a, b) => a > b ? a : b);
+      final mergedWins = [currentStats?.wins ?? 0, localWins ?? 0].reduce((a, b) => a > b ? a : b);
 
-      final payload = {
+      final payload = <String, dynamic>{
         'user_id': user.id,
         'username': currentUsername,
         'high_score': mergedHighScore,
         'best_rally': mergedBestRally,
         'games_played': currentStats?.gamesPlayed ?? 0,
-        'wins': currentStats?.wins ?? 0,
+        'wins': mergedWins,
         'level': mergedLevel,
         'coins': mergedCoins,
+        'kills': mergedKills,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       };
 
       try {
         await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
       } catch (_) {
-        payload.remove('level');
-        payload.remove('coins');
-        await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+        payload.remove('kills');
+        try {
+          await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+        } catch (_) {
+          payload.remove('level');
+          payload.remove('coins');
+          await client!.from('game_stats').upsert(payload, onConflict: 'user_id').timeout(const Duration(seconds: 6));
+        }
       }
     } catch (e) {
       debugPrint('Error syncing local records: $e');
@@ -861,6 +890,126 @@ class SupabaseService {
     } catch (e) {
       debugPrint('Notice saving granted skin to Supabase: $e');
     }
+    return null;
+  }
+
+  // --- Admin Player Stats Management (Coins, Levels, Kills, Wins) ---
+  Future<String?> addPlayerStats({
+    required String username,
+    int coins = 0,
+    int levels = 0,
+    int kills = 0,
+    int wins = 0,
+    String? addedBy,
+  }) async {
+    final clean = username.trim().toLowerCase();
+    if (clean.isEmpty) return 'Username cannot be empty';
+    if (coins <= 0 && levels <= 0 && kills <= 0 && wins <= 0) {
+      return 'Please specify at least one stat amount greater than 0';
+    }
+
+    final exists = await userExists(clean);
+    if (!exists) {
+      return 'User "@$username" does not exist! Please check the spelling.';
+    }
+
+    // 1. If modifying current active user, update local storage immediately
+    if (clean == currentUsername.toLowerCase()) {
+      if (coins > 0) await StorageService.instance.addCoins(coins);
+      if (levels > 0) await StorageService.instance.incrementLevel(levels);
+      if (kills > 0) await StorageService.instance.addKills(kills);
+      if (wins > 0) await StorageService.instance.addWins(wins);
+    }
+
+    // 2. Track in local custom stats adjustments map
+    await StorageService.instance.addLocalUserStats(
+      clean,
+      coins: coins,
+      levels: levels,
+      kills: kills,
+      wins: wins,
+    );
+
+    if (!isConfigured) return null;
+
+    // 3. Update Supabase game_stats
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        final existing = await client!
+            .from('game_stats')
+            .select()
+            .ilike('username', clean)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 6));
+
+        if (existing != null) {
+          final curWins = (existing['wins'] as num?)?.toInt() ?? 0;
+          final curGames = (existing['games_played'] as num?)?.toInt() ?? 0;
+          final curLevel = (existing['level'] as num?)?.toInt() ?? 1;
+          final curCoins = (existing['coins'] as num?)?.toInt() ?? 0;
+          final curKills = (existing['kills'] as num?)?.toInt() ?? (existing['high_score'] as num?)?.toInt() ?? 0;
+          final curHighScore = (existing['high_score'] as num?)?.toInt() ?? 0;
+
+          final newWins = curWins + wins;
+          final newGames = curGames + wins;
+          final newLevel = (curLevel + levels).clamp(1, 99999);
+          final newCoins = (curCoins + coins).clamp(0, 9999999);
+          final newKills = curKills + kills;
+          final newHighScore = (newKills > curHighScore) ? newKills : curHighScore;
+
+          final payload = <String, dynamic>{
+            'wins': newWins,
+            'games_played': newGames,
+            'level': newLevel,
+            'coins': newCoins,
+            'kills': newKills,
+            'high_score': newHighScore,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          };
+
+          try {
+            await client!.from('game_stats').update(payload).ilike('username', clean).timeout(const Duration(seconds: 6));
+          } catch (_) {
+            payload.remove('kills');
+            try {
+              await client!.from('game_stats').update(payload).ilike('username', clean).timeout(const Duration(seconds: 6));
+            } catch (_) {
+              payload.remove('level');
+              payload.remove('coins');
+              await client!.from('game_stats').update(payload).ilike('username', clean).timeout(const Duration(seconds: 6));
+            }
+          }
+        } else {
+          final payload = <String, dynamic>{
+            'username': clean,
+            'wins': wins,
+            'games_played': wins,
+            'level': 1 + levels,
+            'coins': coins,
+            'kills': kills,
+            'high_score': kills,
+            'best_rally': 0,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          };
+          try {
+            await client!.from('game_stats').insert(payload).timeout(const Duration(seconds: 6));
+          } catch (_) {
+            payload.remove('kills');
+            try {
+              await client!.from('game_stats').insert(payload).timeout(const Duration(seconds: 6));
+            } catch (_) {
+              payload.remove('level');
+              payload.remove('coins');
+              await client!.from('game_stats').insert(payload).timeout(const Duration(seconds: 6));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Notice adding player stats in Supabase: $e');
+    }
+
     return null;
   }
 }

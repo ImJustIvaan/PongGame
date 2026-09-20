@@ -80,6 +80,13 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
   final _skinUsernameController = TextEditingController();
   PaddleSkin _selectedSkinToGrant = PaddleSkinCatalog.allSkins.first;
 
+  // Add Stats Tab Controllers
+  final _statsUsernameController = TextEditingController();
+  final _coinsController = TextEditingController();
+  final _levelsController = TextEditingController();
+  final _killsController = TextEditingController();
+  final _winsController = TextEditingController();
+
   bool _isLoading = false;
   bool _isLoadingList = true;
   String? _statusMessage;
@@ -91,7 +98,7 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() {
       if (mounted) setState(() => _statusMessage = null);
     });
@@ -105,6 +112,11 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
     _reasonController.dispose();
     _verifyUsernameController.dispose();
     _skinUsernameController.dispose();
+    _statsUsernameController.dispose();
+    _coinsController.dispose();
+    _levelsController.dispose();
+    _killsController.dispose();
+    _winsController.dispose();
     super.dispose();
   }
 
@@ -285,11 +297,73 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
     }
   }
 
+  void _submitAddStats() async {
+    final username = _statsUsernameController.text.trim();
+    if (username.isEmpty) {
+      setState(() {
+        _isError = true;
+        _statusMessage = 'Please enter a target username';
+      });
+      return;
+    }
+
+    final coins = int.tryParse(_coinsController.text.trim()) ?? 0;
+    final levels = int.tryParse(_levelsController.text.trim()) ?? 0;
+    final kills = int.tryParse(_killsController.text.trim()) ?? 0;
+    final wins = int.tryParse(_winsController.text.trim()) ?? 0;
+
+    if (coins <= 0 && levels <= 0 && kills <= 0 && wins <= 0) {
+      setState(() {
+        _isError = true;
+        _statusMessage = 'Please specify at least one stat amount greater than 0';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _statusMessage = null;
+    });
+
+    final currentAdmin = SupabaseService.instance.currentUsername;
+    final err = await SupabaseService.instance.addPlayerStats(
+      username: username,
+      coins: coins,
+      levels: levels,
+      kills: kills,
+      wins: wins,
+      addedBy: currentAdmin,
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        if (err != null) {
+          _isError = true;
+          _statusMessage = err;
+        } else {
+          _isError = false;
+          final List<String> boosted = [];
+          if (coins > 0) boosted.add('+$coins Coins');
+          if (levels > 0) boosted.add('+$levels Levels');
+          if (kills > 0) boosted.add('+$kills Kills');
+          if (wins > 0) boosted.add('+$wins Wins');
+          _statusMessage = 'Successfully boosted @$username: ${boosted.join(', ')}!';
+          _coinsController.clear();
+          _levelsController.clear();
+          _killsController.clear();
+          _winsController.clear();
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const red = Color(0xFFFF1744);
     const cyan = Color(0xFF00E5FF);
     const gold = Color(0xFFFFD700);
+    const green = Color(0xFF00E676);
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -340,7 +414,7 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
                           ),
                         ),
                         Text(
-                          'Bans • Verified Status • Give Skins (ImJustIvaan)',
+                          'Bans • Verified • Give Skins • Boost Stats (ImJustIvaan)',
                           style: TextStyle(color: Colors.white54, fontSize: 11),
                         ),
                       ],
@@ -371,13 +445,14 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
                 ),
                 labelColor: Colors.white,
                 unselectedLabelColor: Colors.white54,
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, letterSpacing: 0.5),
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.5),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
                 tabs: const [
-                  Tab(icon: Icon(Icons.block, size: 16), text: 'BAN PLAYERS'),
-                  Tab(icon: Icon(Icons.verified, size: 16, color: cyan), text: 'VERIFY USERS'),
-                  Tab(icon: Icon(Icons.card_giftcard, size: 16, color: gold), text: 'GIVE SKINS'),
+                  Tab(icon: Icon(Icons.block, size: 15), text: 'BANS'),
+                  Tab(icon: Icon(Icons.verified, size: 15, color: cyan), text: 'VERIFY'),
+                  Tab(icon: Icon(Icons.card_giftcard, size: 15, color: gold), text: 'SKINS'),
+                  Tab(icon: Icon(Icons.bolt, size: 15, color: green), text: 'ADD STATS'),
                 ],
               ),
             ),
@@ -427,6 +502,7 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
                   _buildBanTab(red),
                   _buildVerifyTab(cyan),
                   _buildGiveSkinsTab(gold),
+                  _buildStatsTab(green),
                 ],
               ),
             ),
@@ -824,6 +900,223 @@ class _AdminPanelDialogState extends State<AdminPanelDialog> with SingleTickerPr
               ),
               onPressed: _isLoading ? null : _submitGrantSkin,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- TAB 4: ADD STATS (COINS, LEVELS, KILLS, WINS) ---
+  Widget _buildStatsTab(Color accentColor) {
+    const green = Color(0xFF00E676);
+    const gold = Color(0xFFFFD700);
+    const cyan = Color(0xFF00E5FF);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'BOOST PLAYER STATS',
+            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 0.8),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Add coins, levels, kills, and wins to any player. All values entered will be added to the player\'s existing records.',
+            style: TextStyle(color: Colors.white54, fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'TARGET USERNAME',
+                style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+              ),
+              InkWell(
+                onTap: () {
+                  final me = SupabaseService.instance.currentUsername;
+                  if (me.isNotEmpty) {
+                    setState(() => _statsUsernameController.text = me);
+                  }
+                },
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.person_pin, size: 13, color: accentColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        'USE MY USERNAME',
+                        style: TextStyle(color: accentColor, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _statsUsernameController,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Enter username to boost (e.g. ImJustIvaan)...',
+              hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+              filled: true,
+              fillColor: const Color(0xFF14172B),
+              prefixIcon: Icon(Icons.person, color: accentColor, size: 20),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: accentColor)),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Stat Input Cards in 2x2 Grid
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatBoostCard(
+                  title: 'ADD COINS',
+                  icon: Icons.monetization_on,
+                  color: gold,
+                  controller: _coinsController,
+                  presets: [100, 500, 1000, 5000],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatBoostCard(
+                  title: 'ADD LEVELS',
+                  icon: Icons.bolt,
+                  color: green,
+                  controller: _levelsController,
+                  presets: [1, 5, 10, 25],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatBoostCard(
+                  title: 'ADD KILLS',
+                  icon: Icons.track_changes,
+                  color: const Color(0xFFFF5252),
+                  controller: _killsController,
+                  presets: [5, 10, 25, 50],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatBoostCard(
+                  title: 'ADD WINS',
+                  icon: Icons.emoji_events,
+                  color: cyan,
+                  controller: _winsController,
+                  presets: [1, 5, 10, 25],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.flash_on, size: 18),
+              label: const Text(
+                'APPLY STATS BOOST',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.0),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: _isLoading ? null : _submitAddStats,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatBoostCard({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required TextEditingController controller,
+    required List<int> presets,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF14172B),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.8),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+            decoration: InputDecoration(
+              hintText: '+0',
+              hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+              filled: true,
+              fillColor: const Color(0xFF0F1226),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: color)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: presets.map((p) {
+              return InkWell(
+                onTap: () {
+                  final cur = int.tryParse(controller.text.trim()) ?? 0;
+                  controller.text = '${cur + p}';
+                },
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: color.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    '+$p',
+                    style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),

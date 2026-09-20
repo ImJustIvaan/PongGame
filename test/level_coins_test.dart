@@ -69,5 +69,76 @@ void main() {
       await StorageService.instance.addCoins(100);
       expect(StorageService.instance.getCoins(), 150);
     });
+
+    test('Kills and Wins track and increment properly', () async {
+      expect(StorageService.instance.getKills(), 0);
+      expect(StorageService.instance.getWins(), 0);
+
+      await StorageService.instance.addKills(7);
+      expect(StorageService.instance.getKills(), 7);
+
+      await StorageService.instance.addWins(1);
+      expect(StorageService.instance.getWins(), 1);
+    });
+
+    test('addPlayerStats validates user existence and updates stats for valid accounts', () async {
+      // 1. Rejects non-existent user
+      final notFoundErr = await SupabaseService.instance.addPlayerStats(
+        username: 'non_existent_ghost',
+        coins: 100,
+        levels: 2,
+        kills: 10,
+        wins: 1,
+      );
+      expect(notFoundErr, isNotNull);
+      expect(notFoundErr, contains('does not exist'));
+
+      // 2. Rejects when all stats are zero or negative
+      await StorageService.instance.addKnownUsername('real_player');
+      final zeroErr = await SupabaseService.instance.addPlayerStats(
+        username: 'real_player',
+        coins: 0,
+        levels: 0,
+        kills: 0,
+        wins: 0,
+      );
+      expect(zeroErr, isNotNull);
+      expect(zeroErr, contains('at least one stat amount'));
+
+      // 3. Successfully boosts stats for known user
+      final successErr = await SupabaseService.instance.addPlayerStats(
+        username: 'real_player',
+        coins: 500,
+        levels: 5,
+        kills: 25,
+        wins: 3,
+      );
+      expect(successErr, isNull);
+
+      final localStats = StorageService.instance.getLocalUserStats('real_player');
+      expect(localStats['coins'], 500);
+      expect(localStats['level'], 6); // default 1 + 5
+      expect(localStats['kills'], 25);
+      expect(localStats['wins'], 3);
+    });
+
+    test('addPlayerStats directly updates active local player if target is current player', () async {
+      await StorageService.instance.saveUsername('ImJustIvaan');
+      final initialCoins = StorageService.instance.getCoins();
+      final initialLevel = StorageService.instance.getLevel();
+
+      final err = await SupabaseService.instance.addPlayerStats(
+        username: 'ImJustIvaan',
+        coins: 1000,
+        levels: 10,
+        kills: 50,
+        wins: 5,
+      );
+      expect(err, isNull);
+      expect(StorageService.instance.getCoins(), initialCoins + 1000);
+      expect(StorageService.instance.getLevel(), initialLevel + 10);
+      expect(StorageService.instance.getKills(), greaterThanOrEqualTo(50));
+      expect(StorageService.instance.getWins(), greaterThanOrEqualTo(5));
+    });
   });
 }

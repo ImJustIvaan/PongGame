@@ -133,6 +133,31 @@ class StorageService {
     return next;
   }
 
+  int getKills() => _prefs?.getInt('player_kills') ?? getHighScore();
+  Future<void> saveKills(int kills) async {
+    await _prefs?.setInt('player_kills', kills.clamp(0, 9999999));
+  }
+
+  Future<int> addKills(int amount) async {
+    final next = getKills() + amount;
+    await saveKills(next);
+    if (next > getHighScore()) {
+      await saveHighScore(next);
+    }
+    return next;
+  }
+
+  int getWins() => _prefs?.getInt('player_wins') ?? 0;
+  Future<void> saveWins(int wins) async {
+    await _prefs?.setInt('player_wins', wins.clamp(0, 9999999));
+  }
+
+  Future<int> addWins(int amount) async {
+    final next = getWins() + amount;
+    await saveWins(next);
+    return next;
+  }
+
   // --- Paddle Skins & Wardrobe ---
   String getEquippedSkin() => _prefs?.getString('equipped_skin') ?? 'classic_cyan';
   Future<void> saveEquippedSkin(String skinId) async {
@@ -228,6 +253,37 @@ class StorageService {
     final clean = username.trim().toLowerCase();
     if (clean.isEmpty) return false;
     return getKnownUsernames().contains(clean);
+  }
+
+  // --- Local User Custom Stats Adjustments ---
+  Map<String, int> getLocalUserStats(String username) {
+    final clean = username.trim().toLowerCase();
+    return {
+      'coins': _prefs?.getInt('user_coins_$clean') ?? 0,
+      'level': _prefs?.getInt('user_level_$clean') ?? 1,
+      'kills': _prefs?.getInt('user_kills_$clean') ?? 0,
+      'wins': _prefs?.getInt('user_wins_$clean') ?? 0,
+    };
+  }
+
+  Future<void> addLocalUserStats(
+    String username, {
+    int coins = 0,
+    int levels = 0,
+    int kills = 0,
+    int wins = 0,
+  }) async {
+    final clean = username.trim().toLowerCase();
+    final cur = getLocalUserStats(clean);
+    final nextCoins = (cur['coins']! + coins).clamp(0, 9999999);
+    final nextLevel = (cur['level']! + levels).clamp(1, 99999);
+    final nextKills = (cur['kills']! + kills).clamp(0, 9999999);
+    final nextWins = (cur['wins']! + wins).clamp(0, 9999999);
+
+    await _prefs?.setInt('user_coins_$clean', nextCoins);
+    await _prefs?.setInt('user_level_$clean', nextLevel);
+    await _prefs?.setInt('user_kills_$clean', nextKills);
+    await _prefs?.setInt('user_wins_$clean', nextWins);
   }
 }
 

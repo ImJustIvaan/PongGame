@@ -1052,8 +1052,8 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     final isVerified = UserUtils.isVerified(rawName);
     final highScore = _myStats?.highScore ?? StorageService.instance.getHighScore();
     final bestRally = _myStats?.bestRally ?? StorageService.instance.getBestRally();
-    final games = _myStats?.gamesPlayed ?? 0;
-    final wins = _myStats?.wins ?? 0;
+    final wins = _myStats?.wins ?? StorageService.instance.getWins();
+    final kills = _myStats?.kills ?? StorageService.instance.getKills();
     final level = _myStats?.level ?? StorageService.instance.getLevel();
     final coins = _myStats?.coins ?? StorageService.instance.getCoins();
 
@@ -1204,7 +1204,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           children: [
             _buildStatCard('HIGH SCORE', '$highScore', cyan),
             _buildStatCard('BEST RALLY', '$bestRally', const Color(0xFFFF71CE)),
-            _buildStatCard('GAMES', '$games', Colors.amberAccent),
+            _buildStatCard('KILLS', '$kills', const Color(0xFFFF5252)),
             _buildStatCard('WINS', '$wins', const Color(0xFF00FF88)),
           ],
         ),
@@ -1242,8 +1242,12 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                 'OPEN OWNER ADMIN PANEL',
                 style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 13),
               ),
-              onPressed: () {
-                AdminPanelDialog.show(context, widget.theme);
+              onPressed: () async {
+                await AdminPanelDialog.show(context, widget.theme);
+                if (mounted) {
+                  final s = await _supabase.fetchMyStats();
+                  setState(() => _myStats = s);
+                }
               },
             ),
           ),
@@ -1269,6 +1273,8 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                     StorageService.instance.getBestRally(),
                     localLevel: StorageService.instance.getLevel(),
                     localCoins: StorageService.instance.getCoins(),
+                    localKills: StorageService.instance.getKills(),
+                    localWins: StorageService.instance.getWins(),
                   );
                   final s = await _supabase.fetchMyStats();
                   if (s != null) {
@@ -1277,6 +1283,12 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                     }
                     if (s.coins > StorageService.instance.getCoins()) {
                       await StorageService.instance.saveCoins(s.coins);
+                    }
+                    if (s.kills > StorageService.instance.getKills()) {
+                      await StorageService.instance.saveKills(s.kills);
+                    }
+                    if (s.wins > StorageService.instance.getWins()) {
+                      await StorageService.instance.saveWins(s.wins);
                     }
                   }
                   if (mounted) {

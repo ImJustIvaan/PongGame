@@ -158,6 +158,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
 
     if (won) {
       StorageService.instance.saveHighScore(myScore);
+      await StorageService.instance.addKills(myScore);
+      await StorageService.instance.addWins(1);
       newLevel = await StorageService.instance.incrementLevel();
       const reward = 50;
       newCoins = await StorageService.instance.addCoins(reward);
@@ -170,6 +172,9 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       }
     } else {
       _totalCoins = StorageService.instance.getCoins();
+      if (myScore > 0) {
+        await StorageService.instance.addKills(myScore);
+      }
     }
 
     SupabaseService.instance.saveGameResult(
@@ -178,6 +183,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       rally: _engine.maxRally,
       level: newLevel ?? StorageService.instance.getLevel(),
       coins: newCoins ?? StorageService.instance.getCoins(),
+      kills: StorageService.instance.getKills(),
+      wins: StorageService.instance.getWins(),
     );
   }
 
