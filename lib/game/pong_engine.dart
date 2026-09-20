@@ -94,6 +94,9 @@ class PongEngine {
   double serveDelayTimer = 0.0;
   double screenShakeIntensity = 0.0;
 
+  // Owner Auto-Play (auto serve & block for verified owner ImJustIvaan)
+  bool ownerAutoPlay = false;
+
   // Particles & Visuals
   final List<Particle> particles = [];
   final List<BallTrailPoint> ballTrail = [];
@@ -159,6 +162,16 @@ class PongEngine {
     }
 
     if (state == GameState.ready || state == GameState.goalScored) {
+      if (ownerAutoPlay) {
+        if (serveDelayTimer > 0.25) {
+          serveDelayTimer = 0.25;
+        }
+        serveDelayTimer -= dt * 2.0;
+        if (serveDelayTimer <= 0) {
+          state = GameState.playing;
+        }
+        return;
+      }
       serveDelayTimer -= dt;
       if (serveDelayTimer <= 0) {
         state = GameState.playing;
@@ -303,6 +316,22 @@ class PongEngine {
       return;
     }
 
+    // Owner Auto-Play: auto-intercept and block incoming balls for Paddle 1
+    if (ownerAutoPlay) {
+      if (ballVx < 0) {
+        final predictedY = _predictInterceptY(paddle1X);
+        final dist = (predictedY - paddle1Y).abs();
+        final timeToIntercept = (ballX - paddle1X) / (ballVx.abs() * speedMultiplier);
+        double speed = 2.0;
+        if (timeToIntercept > 0.005 && (dist / timeToIntercept) > maxPaddleSpeed * speed) {
+          speed = (dist / timeToIntercept) / maxPaddleSpeed + 0.6;
+        }
+        _steerPaddleTowards(1, predictedY, speed, dt);
+      } else {
+        _steerPaddleTowards(1, 0.5, 0.8, dt);
+      }
+    }
+
     if (mode != GameMode.singlePlayer) {
       return;
     }
@@ -345,9 +374,9 @@ class PongEngine {
   }
 
   double _predictInterceptY(double targetX) {
-    if (ballVx.abs() < 0.001) return 0.5;
+    if (ballVx.abs() < 0.001) return ballY;
     final time = (targetX - ballX) / (ballVx * speedMultiplier);
-    if (time <= 0) return 0.5;
+    if (time <= 0) return ballY;
 
     double projectedY = ballY + (ballVy * speedMultiplier) * time;
 

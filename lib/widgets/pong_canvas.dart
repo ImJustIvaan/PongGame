@@ -117,6 +117,7 @@ class _PongPainter extends CustomPainter {
       x: engine.paddle1X,
       y: engine.paddle1Y,
       color: theme.paddle1Color,
+      isAutoPilot: engine.ownerAutoPlay,
     );
 
     // Paddle 2 (Right, non-practice)
@@ -161,6 +162,7 @@ class _PongPainter extends CustomPainter {
     required double x,
     required double y,
     required Color color,
+    bool isAutoPilot = false,
   }) {
     final pw = engine.paddleWidth * size.width;
     final ph = engine.paddleHeight * size.height;
@@ -172,7 +174,12 @@ class _PongPainter extends CustomPainter {
       Radius.circular(pw / 2),
     );
 
-    if (theme.hasGlow) {
+    if (isAutoPilot) {
+      final autoGlow = Paint()
+        ..color = const Color(0xFF00E5FF).withValues(alpha: 0.65)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
+      canvas.drawRRect(rrect.inflate(4), autoGlow);
+    } else if (theme.hasGlow) {
       final glowPaint = Paint()
         ..color = color.withValues(alpha: 0.5)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
@@ -183,6 +190,14 @@ class _PongPainter extends CustomPainter {
       ..color = color
       ..style = PaintingStyle.fill;
     canvas.drawRRect(rrect, paddlePaint);
+
+    if (isAutoPilot) {
+      final borderPaint = Paint()
+        ..color = const Color(0xFF00E5FF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawRRect(rrect, borderPaint);
+    }
   }
 
   @override

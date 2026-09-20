@@ -97,4 +97,9 @@ class StorageService {
   Future<void> saveSoundEnabled(bool enabled) async {
     await _prefs?.setBool('sound_enabled', enabled);
   }
+
+  bool getOwnerAutoPlay() => _prefs?.getBool('owner_auto_play') ?? false;
+  Future<void> saveOwnerAutoPlay(bool enabled) async {
+    await _prefs?.setBool('owner_auto_play', enabled);
+  }
 }

@@ -7,6 +7,9 @@ class UserUtils {
     return username.trim().toLowerCase() == 'imjustivaan';
   }
 
+  /// Alias specifically indicating verified owner privileges for ImJustIvaan.
+  static bool isOwner(String? username) => isVerified(username);
+
   /// Glowing verified checkmark badge widget.
   static Widget verifiedBadge({double size = 16}) {
     return Tooltip(

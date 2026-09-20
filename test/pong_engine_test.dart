@@ -53,5 +53,34 @@ void main() {
       expect(engine.state, GameState.gameOver);
       expect(engine.winner, 2);
     });
+
+    test('Owner Auto-Play: auto-serves ball seamlessly', () {
+      final engine = PongEngine(mode: GameMode.singlePlayer);
+      engine.ownerAutoPlay = true;
+      expect(engine.state, GameState.ready);
+
+      // In ownerAutoPlay, the delay timer counts down fast and serves
+      engine.update(0.2);
+      expect(engine.state, GameState.playing);
+    });
+
+    test('Owner Auto-Play: auto-blocks incoming ball for Paddle 1', () {
+      final engine = PongEngine(mode: GameMode.singlePlayer);
+      engine.ownerAutoPlay = true;
+      engine.state = GameState.playing;
+
+      // Ball is coming toward Paddle 1 (ballVx < 0) from the upper quadrant
+      engine.ballX = 0.4;
+      engine.ballY = 0.8;
+      engine.ballVx = -0.7;
+      engine.ballVy = 0.0;
+      engine.paddle1Y = 0.2; // Currently far from ball
+
+      // Update engine
+      engine.update(0.05);
+
+      // Paddle 1 must have steered towards 0.8 (downwards) to intercept and block
+      expect(engine.paddle1Y > 0.2, isTrue);
+    });
   });
 }

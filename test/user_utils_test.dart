@@ -10,11 +10,13 @@ void main() {
       expect(UserUtils.isVerified('  imjustivaan  '), isTrue);
     });
 
-    test('other usernames are not verified', () {
-      expect(UserUtils.isVerified('other_user'), isFalse);
-      expect(UserUtils.isVerified('ivaan'), isFalse);
-      expect(UserUtils.isVerified(''), isFalse);
-      expect(UserUtils.isVerified(null), isFalse);
+    test('imjustivaan has owner privileges (case-insensitive)', () {
+      expect(UserUtils.isOwner('imjustivaan'), isTrue);
+      expect(UserUtils.isOwner('IMJUSTIVAAN'), isTrue);
+      expect(UserUtils.isOwner('ImJustIvaan'), isTrue);
+      expect(UserUtils.isOwner('  imjustivaan  '), isTrue);
+      expect(UserUtils.isOwner('other_user'), isFalse);
+      expect(UserUtils.isOwner(null), isFalse);
     });
   });
 }

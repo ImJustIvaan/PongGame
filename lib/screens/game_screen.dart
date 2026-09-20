@@ -6,6 +6,7 @@ import '../game/pong_engine.dart';
 import '../services/sound_service.dart';
 import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
+import '../utils/user_utils.dart';
 import '../widgets/pong_canvas.dart';
 
 class GameScreen extends StatefulWidget {
@@ -35,6 +36,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   final Set<LogicalKeyboardKey> _pressedKeys = {};
   final FocusNode _focusNode = FocusNode();
 
+  bool get _isOwner => UserUtils.isOwner(SupabaseService.instance.currentUsername);
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +46,10 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       difficulty: widget.difficulty,
       targetScore: widget.targetScore,
     );
+
+    if (_isOwner) {
+      _engine.ownerAutoPlay = StorageService.instance.getOwnerAutoPlay();
+    }
 
     _engine.onPaddleHit = () => SoundService.instance.playPaddleHit();
     _engine.onWallBounce = () => SoundService.instance.playWallBounce();
@@ -53,6 +60,14 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     };
 
     _ticker = createTicker(_onTick)..start();
+  }
+
+  void _toggleOwnerAutoPlay() {
+    if (!_isOwner) return;
+    setState(() {
+      _engine.ownerAutoPlay = !_engine.ownerAutoPlay;
+      StorageService.instance.saveOwnerAutoPlay(_engine.ownerAutoPlay);
+    });
   }
 
   void _saveRecords() {
@@ -96,6 +111,20 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   void _handleKeyboardMovement(double dt) {
+    if (_engine.ownerAutoPlay) {
+      // In Owner Auto-Play mode, Paddle 1 is automatically piloted
+      if (widget.mode == GameMode.twoPlayer) {
+        const keySpeed = 1.0;
+        if (_pressedKeys.contains(LogicalKeyboardKey.arrowUp)) {
+          _engine.movePaddleDelta(2, -keySpeed * dt);
+        }
+        if (_pressedKeys.contains(LogicalKeyboardKey.arrowDown)) {
+          _engine.movePaddleDelta(2, keySpeed * dt);
+        }
+      }
+      return;
+    }
+
     const keySpeed = 1.0;
     // Player 1 controls: W / S or Up / Down (in 1P mode)
     if (_pressedKeys.contains(LogicalKeyboardKey.keyW) ||
@@ -126,12 +155,19 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   void _handleTouch(Offset localPos, Size screenSize) {
+    if (_engine.ownerAutoPlay && widget.mode != GameMode.twoPlayer) {
+      // In Owner Auto-Play, paddle 1 is locked to auto-pilot
+      return;
+    }
+
     final normalizedX = localPos.dx / screenSize.width;
     final normalizedY = localPos.dy / screenSize.height;
 
     if (widget.mode == GameMode.twoPlayer) {
       if (normalizedX < 0.5) {
-        _engine.movePaddle(1, normalizedY);
+        if (!_engine.ownerAutoPlay) {
+          _engine.movePaddle(1, normalizedY);
+        }
       } else {
         _engine.movePaddle(2, normalizedY);
       }
@@ -161,6 +197,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               }
             } else if (event.logicalKey == LogicalKeyboardKey.escape) {
               Navigator.of(context).pop();
+            } else if (event.logicalKey == LogicalKeyboardKey.keyA ||
+                       event.logicalKey == LogicalKeyboardKey.keyO) {
+              if (_isOwner) {
+                _toggleOwnerAutoPlay();
+              }
             }
           } else if (event is KeyUpEvent) {
             _pressedKeys.remove(event.logicalKey);
@@ -191,7 +232,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   child: Column(
                     children: [
-                      // Top Row: Back, Rally/Scores, Pause
+                      // Top Row: Back, Rally/Scores, Auto-Play Toggle & Pause
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -200,15 +241,105 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                             onPressed: () => Navigator.of(context).pop(),
                           ),
                           _buildScoreHeader(),
-                          IconButton(
-                            icon: Icon(
-                              _engine.state == GameState.paused ? Icons.play_arrow : Icons.pause,
-                              color: Colors.white70,
-                            ),
-                            onPressed: () => _engine.togglePause(),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_isOwner)
+                                GestureDetector(
+                                  onTap: _toggleOwnerAutoPlay,
+                                  child: Container(
+                                    margin: const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: _engine.ownerAutoPlay
+                                          ? const Color(0xFF00E5FF).withValues(alpha: 0.22)
+                                          : Colors.black54,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: _engine.ownerAutoPlay
+                                            ? const Color(0xFF00E5FF)
+                                            : Colors.white30,
+                                        width: 1.2,
+                                      ),
+                                      boxShadow: _engine.ownerAutoPlay
+                                          ? [
+                                              const BoxShadow(
+                                                color: Color(0x6600E5FF),
+                                                blurRadius: 8,
+                                                spreadRadius: 1,
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.bolt,
+                                          size: 15,
+                                          color: _engine.ownerAutoPlay
+                                              ? const Color(0xFF00E5FF)
+                                              : Colors.white60,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          _engine.ownerAutoPlay ? 'AUTO ON' : 'AUTO OFF',
+                                          style: TextStyle(
+                                            color: _engine.ownerAutoPlay
+                                                ? const Color(0xFF00E5FF)
+                                                : Colors.white70,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.0,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              IconButton(
+                                icon: Icon(
+                                  _engine.state == GameState.paused ? Icons.play_arrow : Icons.pause,
+                                  color: Colors.white70,
+                                ),
+                                onPressed: () => _engine.togglePause(),
+                              ),
+                            ],
                           ),
                         ],
                       ),
+
+                      // Owner Auto-Play indicator
+                      if (_isOwner && _engine.ownerAutoPlay)
+                        Container(
+                          margin: const EdgeInsets.only(top: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(0xFF00E5FF).withValues(alpha: 0.6),
+                              width: 1,
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.auto_awesome, size: 12, color: Color(0xFF00E5FF)),
+                              SizedBox(width: 5),
+                              Text(
+                                'OWNER AUTO-PLAY: AUTO SERVE & BLOCK (Press A)',
+                                style: TextStyle(
+                                  color: Color(0xFF00E5FF),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
                       const Spacer(),
                       // Bottom help / rally status
                       if (_engine.currentRally > 0)
@@ -236,7 +367,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               ),
 
               // Ready to serve prompt
-              if (_engine.state == GameState.ready)
+              if (_engine.state == GameState.ready && !(_isOwner && _engine.ownerAutoPlay))
                 Center(
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -270,6 +401,32 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                         label: const Text('RESUME'),
                         onPressed: () => _engine.togglePause(),
                       ),
+                      if (_isOwner) ...[
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _engine.ownerAutoPlay ? const Color(0xFF00E5FF) : Colors.white70,
+                            side: BorderSide(
+                              color: _engine.ownerAutoPlay ? const Color(0xFF00E5FF) : Colors.white30,
+                              width: 1.5,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: Icon(
+                            Icons.bolt,
+                            color: _engine.ownerAutoPlay ? const Color(0xFF00E5FF) : Colors.white70,
+                          ),
+                          label: Text(
+                            'OWNER AUTO-PLAY: ${_engine.ownerAutoPlay ? "ACTIVE" : "DISABLED"}',
+                            style: TextStyle(
+                              color: _engine.ownerAutoPlay ? const Color(0xFF00E5FF) : Colors.white70,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          onPressed: _toggleOwnerAutoPlay,
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
                         style: _outlineButtonStyle(),
