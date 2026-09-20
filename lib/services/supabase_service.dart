@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'storage_service.dart';
@@ -120,18 +121,20 @@ class SupabaseService {
   }) async {
     if (!isConfigured) return 'Supabase credentials are not configured.';
     if (!_initialized) await initialize();
-    if (!_initialized) return 'Could not connect to Supabase.';
+    if (!_initialized || client == null) return 'Could not connect to Supabase.';
 
     try {
       final res = await client!.auth.signUp(
         email: email.trim(),
         password: password,
         data: {'username': username.trim()},
-      );
+      ).timeout(const Duration(seconds: 8));
       if (res.user == null) {
         return 'Signup failed. Please check your details.';
       }
       return null; // Success
+    } on TimeoutException {
+      return 'Connection timed out. Please check your internet connection.';
     } on AuthException catch (e) {
       return e.message;
     } catch (e) {
@@ -146,17 +149,19 @@ class SupabaseService {
   }) async {
     if (!isConfigured) return 'Supabase credentials are not configured.';
     if (!_initialized) await initialize();
-    if (!_initialized) return 'Could not connect to Supabase.';
+    if (!_initialized || client == null) return 'Could not connect to Supabase.';
 
     try {
       final res = await client!.auth.signInWithPassword(
         email: email.trim(),
         password: password,
-      );
+      ).timeout(const Duration(seconds: 8));
       if (res.user == null) {
         return 'Sign in failed. Check your credentials.';
       }
       return null; // Success
+    } on TimeoutException {
+      return 'Connection timed out. Please check your internet connection.';
     } on AuthException catch (e) {
       return e.message;
     } catch (e) {
@@ -168,11 +173,13 @@ class SupabaseService {
   Future<String?> resetPassword(String email) async {
     if (!isConfigured) return 'Supabase credentials are not configured.';
     if (!_initialized) await initialize();
-    if (!_initialized) return 'Could not connect to authentication service.';
+    if (!_initialized || client == null) return 'Could not connect to authentication service.';
 
     try {
-      await client!.auth.resetPasswordForEmail(email.trim());
+      await client!.auth.resetPasswordForEmail(email.trim()).timeout(const Duration(seconds: 8));
       return null;
+    } on TimeoutException {
+      return 'Connection timed out. Please check your internet connection.';
     } on AuthException catch (e) {
       return e.message;
     } catch (e) {
@@ -184,11 +191,13 @@ class SupabaseService {
   Future<String?> updatePassword(String newPassword) async {
     if (!isConfigured) return 'Supabase credentials are not configured.';
     if (!_initialized) await initialize();
-    if (!_initialized) return 'Could not connect to authentication service.';
+    if (!_initialized || client == null) return 'Could not connect to authentication service.';
 
     try {
-      await client!.auth.updateUser(UserAttributes(password: newPassword.trim()));
+      await client!.auth.updateUser(UserAttributes(password: newPassword.trim())).timeout(const Duration(seconds: 8));
       return null;
+    } on TimeoutException {
+      return 'Connection timed out. Please check your internet connection.';
     } on AuthException catch (e) {
       return e.message;
     } catch (e) {
@@ -199,7 +208,7 @@ class SupabaseService {
   // Auth: Sign Out
   Future<void> signOut() async {
     try {
-      await client?.auth.signOut();
+      await client?.auth.signOut().timeout(const Duration(seconds: 4));
     } catch (_) {}
     await StorageService.instance.logout();
   }
@@ -210,10 +219,11 @@ class SupabaseService {
     required int score,
     required int rally,
   }) async {
-    if (!isLoggedIn) return;
+    final user = currentUser;
+    if (user == null || client == null) return;
 
     try {
-      final userId = currentUser!.id;
+      final userId = user.id;
       final currentStats = await fetchMyStats();
 
       final newGamesPlayed = (currentStats?.gamesPlayed ?? 0) + 1;
@@ -229,7 +239,7 @@ class SupabaseService {
         'games_played': newGamesPlayed,
         'wins': newWins,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }, onConflict: 'user_id');
+      }, onConflict: 'user_id').timeout(const Duration(seconds: 6));
     } catch (e) {
       debugPrint('Error syncing game result to Supabase: $e');
     }
@@ -237,7 +247,8 @@ class SupabaseService {
 
   // Sync local records on login
   Future<void> syncLocalRecords(int localHighScore, int localBestRally) async {
-    if (!isLoggedIn) return;
+    final user = currentUser;
+    if (user == null || client == null) return;
 
     try {
       final currentStats = await fetchMyStats();
@@ -245,14 +256,14 @@ class SupabaseService {
       final mergedBestRally = [currentStats?.bestRally ?? 0, localBestRally].reduce((a, b) => a > b ? a : b);
 
       await client!.from('game_stats').upsert({
-        'user_id': currentUser!.id,
+        'user_id': user.id,
         'username': currentUsername,
         'high_score': mergedHighScore,
         'best_rally': mergedBestRally,
         'games_played': currentStats?.gamesPlayed ?? 0,
         'wins': currentStats?.wins ?? 0,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }, onConflict: 'user_id');
+      }, onConflict: 'user_id').timeout(const Duration(seconds: 6));
     } catch (e) {
       debugPrint('Error syncing local records: $e');
     }
@@ -260,14 +271,16 @@ class SupabaseService {
 
   // Fetch logged-in user stats
   Future<PlayerStats?> fetchMyStats() async {
-    if (!isLoggedIn) return null;
+    final user = currentUser;
+    if (user == null || client == null) return null;
 
     try {
       final data = await client!
           .from('game_stats')
           .select()
-          .eq('user_id', currentUser!.id)
-          .maybeSingle();
+          .eq('user_id', user.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 6));
 
       if (data != null) {
         return PlayerStats.fromMap(data);

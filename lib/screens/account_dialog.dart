@@ -141,35 +141,53 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
       _errorMessage = null;
     });
 
-    if (!_supabase.isConfigured) {
-      final savedEmail = StorageService.instance.getSavedEmail();
-      if (savedEmail != null && savedEmail.toLowerCase() == email.toLowerCase()) {
-        setState(() {
-          _isLoading = false;
-          _isResetPasswordMode = false;
-          _successMessage = 'Local account found! You can sign up with a new password to overwrite.';
-        });
+    try {
+      if (!_supabase.isConfigured) {
+        final savedEmail = StorageService.instance.getSavedEmail();
+        if (savedEmail != null && savedEmail.toLowerCase() == email.toLowerCase()) {
+          if (mounted) {
+            setState(() {
+              _isResetPasswordMode = false;
+              _successMessage = 'Local account found! You can sign up with a new password to overwrite.';
+            });
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _errorMessage = 'No account found with that email address.';
+            });
+          }
+        }
+        return;
+      }
+
+      final error = await _supabase.resetPassword(email);
+      if (error != null) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = error;
+          });
+        }
       } else {
+        if (mounted) {
+          setState(() {
+            _isResetPasswordMode = false;
+            _successMessage = 'Password reset link sent to $email! Check your inbox.';
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _isLoading = false;
-          _errorMessage = 'No account found with that email address.';
+          _errorMessage = 'Reset password failed: $e';
         });
       }
-      return;
-    }
-
-    final error = await _supabase.resetPassword(email);
-    if (error != null) {
-      setState(() {
-        _errorMessage = error;
-        _isLoading = false;
-      });
-    } else {
-      setState(() {
-        _isLoading = false;
-        _isResetPasswordMode = false;
-        _successMessage = 'Password reset link sent to $email! Check your inbox.';
-      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -250,22 +268,29 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                           }
                           setDialogState(() => isSubmitting = true);
 
-                          if (_supabase.isConfigured) {
-                            final err = await _supabase.updatePassword(newPass);
-                            if (err != null) {
-                              setDialogState(() {
-                                isSubmitting = false;
-                                dialogError = err;
-                              });
-                              return;
+                          try {
+                            if (_supabase.isConfigured) {
+                              final err = await _supabase.updatePassword(newPass);
+                              if (err != null) {
+                                setDialogState(() {
+                                  dialogError = err;
+                                });
+                                return;
+                              }
                             }
-                          }
-                          await StorageService.instance.updateLocalPassword(newPass);
-                          if (context.mounted) {
-                            Navigator.of(ctx).pop();
-                          }
-                          if (mounted) {
-                            setState(() => _successMessage = 'Password updated successfully!');
+                            await StorageService.instance.updateLocalPassword(newPass);
+                            if (context.mounted) {
+                              Navigator.of(ctx).pop();
+                            }
+                            if (mounted) {
+                              setState(() => _successMessage = 'Password updated successfully!');
+                            }
+                          } catch (e) {
+                            setDialogState(() {
+                              dialogError = 'Failed to update password: $e';
+                            });
+                          } finally {
+                            setDialogState(() => isSubmitting = false);
                           }
                         },
                   child: const Text('SAVE PASSWORD', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -299,51 +324,79 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _successMessage = null;
     });
 
-    if (!_supabase.isConfigured) {
-      final isValid = StorageService.instance.validateLocalCredentials(
-        email: email,
-        password: password,
-      );
-      if (!isValid) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'Invalid email or password. Please create an account first.';
-        });
+    try {
+      if (!_supabase.isConfigured) {
+        final isValid = StorageService.instance.validateLocalCredentials(
+          email: email,
+          password: password,
+        );
+        if (!isValid) {
+          if (mounted) {
+            setState(() {
+              _errorMessage = 'Invalid email or password. Please create an account first.';
+            });
+          }
+          return;
+        }
+
+        await StorageService.instance.setLoggedIn(true);
+        final username = StorageService.instance.getUsername() ?? email.split('@').first;
+        if (mounted) {
+          setState(() {
+            _successMessage = 'Welcome back, $username!';
+          });
+          _rebuildTabController();
+        }
         return;
       }
 
-      await StorageService.instance.setLoggedIn(true);
-      final username = StorageService.instance.getUsername() ?? email.split('@').first;
-      setState(() {
-        _isLoading = false;
-        _successMessage = 'Welcome back, $username!';
-      });
-      _rebuildTabController();
-      return;
-    }
+      final error = await _supabase.signIn(email: email, password: password);
+      if (error != null) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = error;
+          });
+        }
+      } else {
+        await StorageService.instance.setLoggedIn(true);
+        try {
+          await _supabase.syncLocalRecords(
+            StorageService.instance.getHighScore(),
+            StorageService.instance.getBestRally(),
+          );
+        } catch (e) {
+          debugPrint('Error syncing local records: $e');
+        }
 
-    final error = await _supabase.signIn(email: email, password: password);
-    if (error != null) {
-      setState(() {
-        _errorMessage = error;
-        _isLoading = false;
-      });
-    } else {
-      await StorageService.instance.setLoggedIn(true);
-      await _supabase.syncLocalRecords(
-        StorageService.instance.getHighScore(),
-        StorageService.instance.getBestRally(),
-      );
-      final stats = await _supabase.fetchMyStats();
+        PlayerStats? stats;
+        try {
+          stats = await _supabase.fetchMyStats();
+        } catch (e) {
+          debugPrint('Error fetching stats: $e');
+        }
+
+        if (mounted) {
+          setState(() {
+            _myStats = stats;
+            _successMessage = 'Welcome back, ${_supabase.currentUsername}!';
+          });
+          _rebuildTabController();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Sign in failed: $e';
+        });
+      }
+    } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _myStats = stats;
-          _successMessage = 'Welcome back, ${_supabase.currentUsername}!';
         });
-        _rebuildTabController();
       }
     }
   }
@@ -365,61 +418,91 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _successMessage = null;
     });
 
-    await StorageService.instance.saveLocalAccount(
-      username: username,
-      email: email,
-      password: password,
-    );
-
-    if (!_supabase.isConfigured) {
-      setState(() {
-        _isLoading = false;
-        _successMessage = 'Account created for $username!';
-      });
-      _rebuildTabController();
-      return;
-    }
-
-    final error = await _supabase.signUp(
-      email: email,
-      password: password,
-      username: username,
-    );
-
-    if (error != null) {
-      setState(() {
-        _errorMessage = error;
-        _isLoading = false;
-      });
-    } else {
-      await _supabase.syncLocalRecords(
-        StorageService.instance.getHighScore(),
-        StorageService.instance.getBestRally(),
+    try {
+      await StorageService.instance.saveLocalAccount(
+        username: username,
+        email: email,
+        password: password,
       );
+
+      if (!_supabase.isConfigured) {
+        if (mounted) {
+          setState(() {
+            _successMessage = 'Account created for $username!';
+          });
+          _rebuildTabController();
+        }
+        return;
+      }
+
+      final error = await _supabase.signUp(
+        email: email,
+        password: password,
+        username: username,
+      );
+
+      if (error != null) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = error;
+          });
+        }
+      } else {
+        try {
+          await _supabase.syncLocalRecords(
+            StorageService.instance.getHighScore(),
+            StorageService.instance.getBestRally(),
+          );
+        } catch (e) {
+          debugPrint('Error syncing local records: $e');
+        }
+
+        if (mounted) {
+          setState(() {
+            _successMessage = 'Welcome, $username!';
+          });
+          _rebuildTabController();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Sign up failed: $e';
+        });
+      }
+    } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _successMessage = 'Welcome, $username!';
         });
-        _rebuildTabController();
       }
     }
   }
 
   void _handleLogOut() async {
     setState(() => _isLoading = true);
-    await StorageService.instance.logout();
-    await _supabase.signOut();
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-        _myStats = null;
-        _successMessage = 'Logged out successfully';
-        _errorMessage = null;
-      });
-      _rebuildTabController();
+    try {
+      await StorageService.instance.logout();
+      await _supabase.signOut();
+      if (mounted) {
+        setState(() {
+          _myStats = null;
+          _successMessage = 'Logged out successfully';
+          _errorMessage = null;
+        });
+        _rebuildTabController();
+      }
+    } catch (e) {
+      debugPrint('Logout error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
