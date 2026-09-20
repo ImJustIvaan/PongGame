@@ -14,6 +14,7 @@ class StorageService {
     await _prefs?.setString('player_username', username.trim());
     await _prefs?.setString('auth_email', email.trim().toLowerCase());
     await _prefs?.setString('auth_password', password);
+    await addKnownUsername(username);
     await setLoggedIn(true);
   }
 
@@ -43,6 +44,7 @@ class StorageService {
   String? getUsername() => _prefs?.getString('player_username');
   Future<void> saveUsername(String name) async {
     await _prefs?.setString('player_username', name.trim());
+    await addKnownUsername(name);
   }
 
   static final StorageService instance = StorageService._();
@@ -198,6 +200,34 @@ class StorageService {
       list.add(skinId);
       await _prefs?.setStringList('granted_skins_$clean', list);
     }
+  }
+
+  // --- Known Accounts & Usernames ---
+  List<String> getKnownUsernames() {
+    final list = _prefs?.getStringList('known_usernames') ?? [];
+    final set = list.map((u) => u.trim().toLowerCase()).toSet();
+    set.add('imjustivaan');
+    final current = getUsername();
+    if (current != null && current.trim().isNotEmpty) {
+      set.add(current.trim().toLowerCase());
+    }
+    return set.toList();
+  }
+
+  Future<void> addKnownUsername(String username) async {
+    final clean = username.trim().toLowerCase();
+    if (clean.isEmpty) return;
+    final current = getKnownUsernames().toSet();
+    if (!current.contains(clean)) {
+      current.add(clean);
+      await _prefs?.setStringList('known_usernames', current.toList());
+    }
+  }
+
+  bool isKnownUser(String username) {
+    final clean = username.trim().toLowerCase();
+    if (clean.isEmpty) return false;
+    return getKnownUsernames().contains(clean);
   }
 }
 

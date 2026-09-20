@@ -133,9 +133,15 @@ class SupabaseService {
       return 'Guest';
     }
     final metadata = currentUser?.userMetadata;
-    return metadata?['username'] as String? ??
-        currentUser?.email?.split('@').first ??
-        'Player';
+    final metaName = metadata?['username'] as String?;
+    if (metaName != null && metaName.trim().isNotEmpty) {
+      return metaName.trim();
+    }
+    final local = StorageService.instance.getUsername();
+    if (local != null && local.trim().isNotEmpty) {
+      return local.trim();
+    }
+    return currentUser?.email?.split('@').first ?? 'Player';
   }
 
   Future<bool> initialize() async {
@@ -395,6 +401,9 @@ class SupabaseService {
             .timeout(const Duration(seconds: 5));
 
         final list = (data as List).map((row) => PlayerStats.fromMap(row as Map<String, dynamic>)).toList();
+        for (final item in list) {
+          StorageService.instance.addKnownUsername(item.username);
+        }
         if (list.isNotEmpty) return list;
       }
     } catch (e) {
@@ -418,7 +427,11 @@ class SupabaseService {
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
         if (decoded is List) {
-          return decoded.map((row) => PlayerStats.fromMap(row as Map<String, dynamic>)).toList();
+          final list = decoded.map((row) => PlayerStats.fromMap(row as Map<String, dynamic>)).toList();
+          for (final item in list) {
+            StorageService.instance.addKnownUsername(item.username);
+          }
+          return list;
         }
       }
     } catch (e) {
@@ -442,6 +455,9 @@ class SupabaseService {
             .select()
             .order('created_at', ascending: false);
         final list = data.map((e) => BanRecord.fromMap(e)).toList();
+        for (final b in list) {
+          StorageService.instance.addKnownUsername(b.username);
+        }
         _saveLocalBans(list);
         return list;
       }
@@ -489,6 +505,93 @@ class SupabaseService {
     return null;
   }
 
+  // --- User Existence Verification ---
+  Future<bool> userExists(String username) async {
+    final clean = username.trim().toLowerCase();
+    if (clean.isEmpty) return false;
+
+    // 1. Owner & Current user always exist
+    if (clean == 'imjustivaan') return true;
+    if (clean == currentUsername.toLowerCase()) return true;
+
+    // 2. Check local known accounts & cache
+    if (StorageService.instance.isKnownUser(clean)) return true;
+
+    if (!isConfigured) return false;
+
+    // 3. Query Supabase via client SDK
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        final res = await client!
+            .from('game_stats')
+            .select('username')
+            .ilike('username', clean)
+            .limit(1)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 4));
+        if (res != null) {
+          await StorageService.instance.addKnownUsername(clean);
+          return true;
+        }
+
+        final verifiedRes = await client!
+            .from('verified_users')
+            .select('username')
+            .ilike('username', clean)
+            .limit(1)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 3));
+        if (verifiedRes != null) {
+          await StorageService.instance.addKnownUsername(clean);
+          return true;
+        }
+
+        final bannedRes = await client!
+            .from('banned_users')
+            .select('username')
+            .ilike('username', clean)
+            .limit(1)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 3));
+        if (bannedRes != null) {
+          await StorageService.instance.addKnownUsername(clean);
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('SDK notice in userExists: $e');
+    }
+
+    // 4. Direct REST fallback
+    try {
+      final encoded = Uri.encodeComponent(clean);
+      final uri = Uri.parse(
+        '${SupabaseConfig.url}/rest/v1/game_stats?select=username&username=ilike.$encoded&limit=1',
+      );
+      final res = await http.get(
+        uri,
+        headers: {
+          'apikey': SupabaseConfig.anonKey,
+          'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is List && decoded.isNotEmpty) {
+          await StorageService.instance.addKnownUsername(clean);
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Direct REST userExists fallback notice: $e');
+    }
+
+    return false;
+  }
+
   Future<String?> banUser({
     required String username,
     required Duration? duration,
@@ -497,6 +600,15 @@ class SupabaseService {
   }) async {
     final clean = username.trim().toLowerCase();
     if (clean.isEmpty) return 'Username cannot be empty';
+
+    if (clean == 'imjustivaan') {
+      return 'Cannot ban the owner of the game!';
+    }
+
+    final exists = await userExists(clean);
+    if (!exists) {
+      return 'User "@$username" does not exist! Cannot ban a non-existent account.';
+    }
 
     final now = DateTime.now();
     final bannedUntil = duration != null ? now.add(duration) : null;
@@ -583,6 +695,9 @@ class SupabaseService {
             .where((u) => u.isNotEmpty)
             .toList();
         if (!list.contains('imjustivaan')) list.add('imjustivaan');
+        for (final u in list) {
+          StorageService.instance.addKnownUsername(u);
+        }
         await StorageService.instance.saveLocalVerifiedUsers(list);
         return list;
       }
@@ -631,8 +746,13 @@ class SupabaseService {
     final clean = username.trim().toLowerCase();
     if (clean.isEmpty) return 'Username cannot be empty';
 
-    final local = StorageService.instance.getLocalVerifiedUsers();
     if (isVerified) {
+      final exists = await userExists(clean);
+      if (!exists) {
+        return 'User "@$username" does not exist! Cannot verify a non-existent account.';
+      }
+
+      final local = StorageService.instance.getLocalVerifiedUsers();
       if (!local.contains(clean)) {
         local.add(clean);
         await StorageService.instance.saveLocalVerifiedUsers(local);
@@ -647,6 +767,7 @@ class SupabaseService {
       if (clean == 'imjustivaan') {
         return 'Cannot unverify the system owner!';
       }
+      final local = StorageService.instance.getLocalVerifiedUsers();
       local.remove(clean);
       await StorageService.instance.saveLocalVerifiedUsers(local);
     }
@@ -713,6 +834,11 @@ class SupabaseService {
     final clean = username.trim().toLowerCase();
     if (clean.isEmpty) return 'Username cannot be empty';
     if (skinId.isEmpty) return 'Skin ID cannot be empty';
+
+    final exists = await userExists(clean);
+    if (!exists) {
+      return 'User "@$username" does not exist! Please check the spelling.';
+    }
 
     // Update local cache
     await StorageService.instance.saveLocalGrantedSkin(clean, skinId);

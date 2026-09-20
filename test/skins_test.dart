@@ -1,7 +1,8 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pong_game/game/paddle_skin.dart';
 import 'package:pong_game/services/storage_service.dart';
+import 'package:pong_game/services/supabase_service.dart';
 import 'package:pong_game/utils/user_utils.dart';
 
 void main() {
@@ -98,6 +99,60 @@ void main() {
 
       await StorageService.instance.saveLocalGrantedSkin(testUser, 'cosmic_stars');
       expect(StorageService.instance.getLocalGrantedSkins(testUser), contains('cosmic_stars'));
+    });
+
+    test('userExists returns true for owner ImJustIvaan and false for non-existent users', () async {
+      expect(await SupabaseService.instance.userExists('imjustivaan'), true);
+      expect(await SupabaseService.instance.userExists('ImJustIvaan'), true);
+      expect(await SupabaseService.instance.userExists('i'), false);
+      expect(await SupabaseService.instance.userExists('nonexistent_user_123'), false);
+
+      await StorageService.instance.addKnownUsername('known_player');
+      expect(await SupabaseService.instance.userExists('known_player'), true);
+    });
+
+    test('grantSkinToUser rejects non-existent user with error and does not grant skin', () async {
+      final err = await SupabaseService.instance.grantSkinToUser(
+        username: 'i',
+        skinId: 'cosmic_stars',
+        grantedBy: 'ImJustIvaan',
+      );
+
+      expect(err, isNotNull);
+      expect(err, contains('does not exist'));
+      expect(StorageService.instance.getLocalGrantedSkins('i'), isEmpty);
+      expect(StorageService.instance.isSkinOwned('cosmic_stars'), false);
+    });
+
+    test('setVerifiedStatus and banUser reject non-existent users', () async {
+      final verifyErr = await SupabaseService.instance.setVerifiedStatus(
+        username: 'nonexistent_account',
+        isVerified: true,
+      );
+      expect(verifyErr, isNotNull);
+      expect(verifyErr, contains('does not exist'));
+
+      final banErr = await SupabaseService.instance.banUser(
+        username: 'ghost_user',
+        duration: null,
+        reason: 'Cheating',
+        bannedBy: 'ImJustIvaan',
+      );
+      expect(banErr, isNotNull);
+      expect(banErr, contains('does not exist'));
+    });
+
+    test('grantSkinToUser succeeds for valid existing user', () async {
+      await StorageService.instance.addKnownUsername('real_player');
+
+      final err = await SupabaseService.instance.grantSkinToUser(
+        username: 'real_player',
+        skinId: 'cosmic_stars',
+        grantedBy: 'ImJustIvaan',
+      );
+
+      expect(err, isNull);
+      expect(StorageService.instance.getLocalGrantedSkins('real_player'), contains('cosmic_stars'));
     });
   });
 }

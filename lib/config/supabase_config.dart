@@ -11,7 +11,12 @@ class SupabaseConfig {
   // 2. Or compile-time --dart-define=SUPABASE_URL=...
   // 3. Or project default credentials
   static String get url {
-    final fromDotenv = dotenv.maybeGet('SUPABASE_URL')?.trim() ?? '';
+    String fromDotenv = '';
+    try {
+      if (dotenv.isInitialized) {
+        fromDotenv = dotenv.maybeGet('SUPABASE_URL')?.trim() ?? '';
+      }
+    } catch (_) {}
     if (fromDotenv.isNotEmpty && !fromDotenv.contains('your-project-id') && !fromDotenv.contains('YOUR_PROJECT_ID')) {
       return fromDotenv;
     }
@@ -25,7 +30,12 @@ class SupabaseConfig {
   }
 
   static String get anonKey {
-    final fromDotenv = dotenv.maybeGet('SUPABASE_ANON_KEY')?.trim() ?? '';
+    String fromDotenv = '';
+    try {
+      if (dotenv.isInitialized) {
+        fromDotenv = dotenv.maybeGet('SUPABASE_ANON_KEY')?.trim() ?? '';
+      }
+    } catch (_) {}
     if (fromDotenv.isNotEmpty && !fromDotenv.contains('your-anon') && !fromDotenv.contains('YOUR_SUPABASE_ANON_KEY')) {
       return fromDotenv;
     }
