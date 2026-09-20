@@ -213,7 +213,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                           label: 'LEADERBOARD',
                           onPressed: () async {
                             final isLogged = StorageService.instance.isLoggedIn() || SupabaseService.instance.isLoggedIn;
-                            final targetTab = isLogged ? 1 : 2;
+                            // If logged in: tab 1 is Leaderboard. If logged out: tab 0 is Leaderboard.
+                            final targetTab = isLogged ? 1 : 0;
                             await AccountDialog.show(context, _theme, initialTab: targetTab);
                             setState(() {});
                           },

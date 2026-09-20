@@ -629,9 +629,9 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                                     _buildLeaderboardView(glowColor),
                                   ]
                                 : [
-                                    _buildSignUpView(glowColor, accentPink),
-                                    _isResetPasswordMode ? _buildResetPasswordView(glowColor) : _buildSignInView(glowColor),
                                     _buildLeaderboardView(glowColor),
+                                    _isResetPasswordMode ? _buildResetPasswordView(glowColor) : _buildSignInView(glowColor),
+                                    _buildSignUpView(glowColor, accentPink),
                                   ],
                           ),
                         ),
@@ -653,7 +653,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
       builder: (context, _) {
         final tabs = _isLoggedIn
             ? ['PROFILE & STATS', 'LEADERBOARD']
-            : ['SIGN UP', 'SIGN IN', 'LEADERBOARD'];
+            : ['LEADERBOARD', 'SIGN IN', 'SIGN UP'];
 
         return Container(
           padding: const EdgeInsets.all(4),
@@ -892,7 +892,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
         const SizedBox(height: 8),
         Center(
           child: TextButton(
-            onPressed: () => _tabController.animateTo(0),
+            onPressed: () => _tabController.animateTo(2),
             child: const Text(
               'Need an account? SIGN UP',
               style: TextStyle(color: Colors.white60, fontSize: 12),
@@ -1108,9 +1108,38 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
       );
     }
 
-    return ListView.builder(
-      itemCount: _leaderboard.length,
-      itemBuilder: (context, idx) {
+    return Column(
+      children: [
+        if (!_isLoggedIn)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: cyan.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: cyan.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Want to rank on the board?',
+                  style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
+                ),
+                GestureDetector(
+                  onTap: () => _tabController.animateTo(2),
+                  child: Text(
+                    'SIGN UP ➔',
+                    style: TextStyle(color: cyan, fontSize: 11, fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: _leaderboard.length,
+            itemBuilder: (context, idx) {
         final item = _leaderboard[idx];
         final rankMedal = idx == 0 ? '🥇' : (idx == 1 ? '🥈' : (idx == 2 ? '🥉' : '#${idx + 1}'));
         final isTop3 = idx < 3;
@@ -1171,6 +1200,9 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           ),
         );
       },
+          ),
+        ),
+      ],
     );
   }
 
