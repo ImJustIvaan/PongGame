@@ -2,10 +2,11 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 enum GameMode {
-  singlePlayer, // Player vs AI
-  twoPlayer,    // Local 2P
-  practice,     // Wall bounce rally
-  attractMode,  // AI vs AI menu background
+  singlePlayer,     // Player vs AI
+  twoPlayer,        // Local 2P
+  practice,         // Wall bounce rally
+  attractMode,      // AI vs AI menu background
+  onlineMultiplayer // 1v1 Online Realtime match
 }
 
 enum AiDifficulty {
@@ -147,6 +148,32 @@ class PongEngine {
       state = GameState.paused;
     } else if (state == GameState.paused) {
       state = GameState.playing;
+    }
+  }
+
+  void applyOnlineSync({
+    required double bx,
+    required double by,
+    required double bvx,
+    required double bvy,
+    required double p1y,
+    required int s1,
+    required int s2,
+    required int rally,
+    required String st,
+  }) {
+    ballX = bx;
+    ballY = by;
+    ballVx = bvx;
+    ballVy = bvy;
+    paddle1Y = p1y;
+    score1 = s1;
+    score2 = s2;
+    currentRally = rally;
+    if (rally > maxRally) maxRally = rally;
+    ballTrail.insert(0, BallTrailPoint(ballX, ballY));
+    if (ballTrail.length > maxTrailPoints) {
+      ballTrail.removeLast();
     }
   }
 

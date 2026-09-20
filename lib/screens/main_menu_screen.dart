@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent, AuthState;
 import '../widgets/set_new_password_dialog.dart';
+import '../widgets/online_lobby_dialog.dart';
+import '../widgets/banned_dialog.dart';
 import '../utils/user_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -13,6 +15,7 @@ import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
 import '../widgets/pong_canvas.dart';
 import 'account_dialog.dart';
+import 'admin_panel_dialog.dart';
 import 'game_screen.dart';
 
 class MainMenuScreen extends StatefulWidget {
@@ -43,8 +46,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     SoundService.instance.isMuted = !_soundEnabled;
     _initAuthListener();
 
-
-
     // Attract mode background demo (AI vs AI playing)
     _attractEngine = PongEngine(mode: GameMode.attractMode);
     _attractTicker = createTicker((elapsed) {
@@ -71,8 +72,25 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
       if (kIsWeb) {
         final frag = Uri.base.fragment;
         final query = Uri.base.queryParameters;
+        final path = Uri.base.path;
+
         if (frag.contains('type=recovery') || query['type'] == 'recovery') {
           _promptSetNewPassword();
+          return;
+        }
+
+        // Check for /join/<gameId>
+        String? joinGameId;
+        if (path.contains('/join/')) {
+          joinGameId = path.split('/join/').last.split('?').first.split('#').first.replaceAll('/', '').trim();
+        } else if (frag.contains('join/')) {
+          joinGameId = frag.split('join/').last.split('?').first.replaceAll('/', '').trim();
+        } else if (query.containsKey('join')) {
+          joinGameId = query['join'];
+        }
+
+        if (joinGameId != null && joinGameId.isNotEmpty) {
+          _handleJoinLinkOnStartup(joinGameId);
         }
       }
     });
@@ -82,6 +100,67 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
         _promptSetNewPassword();
       }
     });
+  }
+
+  void _handleJoinLinkOnStartup(String gameId) async {
+    if (!mounted) return;
+    final isLogged = StorageService.instance.isLoggedIn() || SupabaseService.instance.isLoggedIn;
+    if (!isLogged) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFF00E5FF),
+          content: Text(
+            '🎮 You received an invite! Please log in to join your friend.',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          ),
+          duration: Duration(seconds: 4),
+        ),
+      );
+      await AccountDialog.show(context, _theme);
+    }
+
+    final isNowLogged = StorageService.instance.isLoggedIn() || SupabaseService.instance.isLoggedIn;
+    if (isNowLogged && mounted) {
+      _openOnlineMultiplayer(prefilledGameId: gameId);
+    }
+  }
+
+  void _openOnlineMultiplayer({String? prefilledGameId}) async {
+    final isLogged = StorageService.instance.isLoggedIn() || SupabaseService.instance.isLoggedIn;
+    if (!isLogged) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFFFF71CE),
+          content: Text(
+            '🔒 Please log in or create an account to play online with friends.',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      await AccountDialog.show(context, _theme);
+      setState(() {});
+      return;
+    }
+
+    final currentUsername = SupabaseService.instance.currentUsername;
+    final ban = await SupabaseService.instance.checkBanStatus(currentUsername);
+    if (ban != null && ban.isActive) {
+      if (mounted) {
+        BannedDialog.show(context, ban, _theme);
+      }
+      return;
+    }
+
+    if (mounted) {
+      await OnlineLobbyDialog.show(
+        context,
+        theme: _theme,
+        targetScore: _targetScore,
+        prefilledGameId: prefilledGameId,
+      );
+      setState(() {});
+    }
   }
 
   void _promptSetNewPassword() async {
@@ -180,17 +259,27 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       scale: scale,
                       onTap: () => _startGame(GameMode.singlePlayer),
                     ),
-                    SizedBox(height: (14 * scale).roundToDouble()),
+                    SizedBox(height: (12 * scale).roundToDouble()),
+
+                    _buildPlayButton(
+                      title: 'ONLINE 1V1  (MULTIPLAYER)',
+                      subtitle: 'Share Link • Challenge Friends',
+                      icon: Icons.public,
+                      color: const Color(0xFF00FF88),
+                      scale: scale,
+                      onTap: () => _openOnlineMultiplayer(),
+                    ),
+                    SizedBox(height: (12 * scale).roundToDouble()),
 
                     _buildPlayButton(
                       title: '2 PLAYERS  (LOCAL)',
-                      subtitle: 'Shared Screen / Dual Keys',
+                      subtitle: 'Shared Screen / Dual Keys (Casual)',
                       icon: Icons.people,
                       color: _theme.paddle2Color,
                       scale: scale,
                       onTap: () => _startGame(GameMode.twoPlayer),
                     ),
-                    SizedBox(height: (14 * scale).roundToDouble()),
+                    SizedBox(height: (12 * scale).roundToDouble()),
 
                     _buildPlayButton(
                       title: 'PRACTICE RALLY',
@@ -333,58 +422,105 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                   final username = SupabaseService.instance.currentUsername;
                   final isVerified = UserUtils.isVerified(username);
 
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () async {
-                      await AccountDialog.show(context, _theme);
-                      setState(() {});
-                    },
-                    onLongPress: () async {
-                      await AccountDialog.show(context, _theme);
-                      setState(() {});
-                    },
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: (12 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                        vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF090B1E).withValues(alpha: 0.85),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isLogged ? _theme.paddle1Color : Colors.white24,
-                        ),
-                        boxShadow: isLogged
-                            ? [
-                                BoxShadow(
-                                  color: _theme.paddle1Color.withValues(alpha: 0.3),
-                                  blurRadius: 10,
-                                )
-                              ]
-                            : null,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isLogged ? Icons.account_circle : Icons.account_circle_outlined,
-                            size: 16,
-                            color: isLogged ? _theme.paddle1Color : Colors.white70,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            username,
-                            style: TextStyle(
-                              color: isLogged ? _theme.paddle1Color : Colors.white70,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.1,
+                  final isOwner = UserUtils.isOwner(username);
+
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isOwner) ...[
+                        InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () async {
+                            await AdminPanelDialog.show(context, _theme);
+                            setState(() {});
+                          },
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                              vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE50914).withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFFFF1744)),
+                              boxShadow: const [
+                                BoxShadow(color: Color(0x66FF1744), blurRadius: 10, spreadRadius: 1),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.admin_panel_settings, size: 15, color: Color(0xFFFF1744)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'ADMIN',
+                                  style: TextStyle(
+                                    color: const Color(0xFFFF1744),
+                                    fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          if (isVerified) UserUtils.verifiedBadge(size: 15),
-                        ],
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () async {
+                          await AccountDialog.show(context, _theme);
+                          setState(() {});
+                        },
+                        onLongPress: () async {
+                          await AccountDialog.show(context, _theme);
+                          setState(() {});
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: (12 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                            vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF090B1E).withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isLogged ? _theme.paddle1Color : Colors.white24,
+                            ),
+                            boxShadow: isLogged
+                                ? [
+                                    BoxShadow(
+                                      color: _theme.paddle1Color.withValues(alpha: 0.3),
+                                      blurRadius: 10,
+                                    )
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isLogged ? Icons.account_circle : Icons.account_circle_outlined,
+                                size: 16,
+                                color: isLogged ? _theme.paddle1Color : Colors.white70,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                username,
+                                style: TextStyle(
+                                  color: isLogged ? _theme.paddle1Color : Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                              if (isVerified) UserUtils.verifiedBadge(size: 15),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   );
                 },
               ),

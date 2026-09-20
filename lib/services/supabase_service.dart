@@ -35,6 +35,57 @@ class PlayerStats {
   }
 }
 
+class BanRecord {
+  final String username;
+  final DateTime? bannedUntil; // null = Permanent Ban
+  final String bannedBy;
+  final String reason;
+  final DateTime createdAt;
+
+  BanRecord({
+    required this.username,
+    required this.bannedUntil,
+    required this.bannedBy,
+    required this.reason,
+    required this.createdAt,
+  });
+
+  bool get isPermanent => bannedUntil == null;
+  bool get isExpired => bannedUntil != null && DateTime.now().isAfter(bannedUntil!);
+  bool get isActive => !isExpired;
+
+  String get durationLabel {
+    if (isPermanent) return 'Permanent Ban';
+    if (isExpired) return 'Expired';
+    final diff = bannedUntil!.difference(DateTime.now());
+    if (diff.inDays >= 360) return '1 Year (${diff.inDays}d left)';
+    if (diff.inDays >= 28) return '1 Month (${diff.inDays}d left)';
+    if (diff.inDays >= 7) return '7 Days (${diff.inDays}d left)';
+    if (diff.inDays >= 3) return '3 Days (${diff.inDays}d left)';
+    if (diff.inDays >= 1) return '1 Day (${diff.inHours}h left)';
+    if (diff.inHours > 0) return '${diff.inHours} hours left';
+    return '${diff.inMinutes} mins left';
+  }
+
+  Map<String, dynamic> toMap() => {
+    'username': username.toLowerCase().trim(),
+    'banned_until': bannedUntil?.toUtc().toIso8601String(),
+    'banned_by': bannedBy,
+    'reason': reason,
+    'created_at': createdAt.toUtc().toIso8601String(),
+  };
+
+  factory BanRecord.fromMap(Map<String, dynamic> map) {
+    return BanRecord(
+      username: map['username'] as String? ?? '',
+      bannedUntil: map['banned_until'] != null ? DateTime.tryParse(map['banned_until'] as String)?.toLocal() : null,
+      bannedBy: map['banned_by'] as String? ?? 'Admin',
+      reason: map['reason'] as String? ?? 'Violation of Terms',
+      createdAt: DateTime.tryParse(map['created_at'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+    );
+  }
+}
+
 class SupabaseService {
   static final SupabaseService instance = SupabaseService._();
   SupabaseService._();
@@ -340,5 +391,143 @@ class SupabaseService {
     }
 
     return [];
+  }
+
+  // Ban Management (Admin / Owner)
+  Future<List<BanRecord>> fetchBannedUsers() async {
+    final localList = _loadLocalBans();
+
+    if (!isConfigured) return localList;
+
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        final data = await client!
+            .from('banned_users')
+            .select()
+            .order('created_at', ascending: false);
+        final list = data.map((e) => BanRecord.fromMap(e)).toList();
+        _saveLocalBans(list);
+        return list;
+      }
+    } catch (e) {
+      debugPrint('Error fetching banned users via SDK: $e');
+    }
+
+    return localList;
+  }
+
+  Future<BanRecord?> checkBanStatus(String username) async {
+    final clean = username.trim().toLowerCase();
+    if (clean.isEmpty) return null;
+
+    // 1. Check local cache first for instant feedback
+    final localBans = _loadLocalBans();
+    final localMatch = localBans.where((b) => b.username.toLowerCase() == clean && b.isActive).toList();
+    if (localMatch.isNotEmpty) return localMatch.first;
+
+    if (!isConfigured) return null;
+
+    // 2. Query Supabase
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        final data = await client!
+            .from('banned_users')
+            .select()
+            .eq('username', clean)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 6));
+        if (data != null) {
+          final record = BanRecord.fromMap(data);
+          if (record.isActive) {
+            final updated = localBans.where((b) => b.username.toLowerCase() != clean).toList()..add(record);
+            _saveLocalBans(updated);
+            return record;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking ban status: $e');
+    }
+
+    return null;
+  }
+
+  Future<String?> banUser({
+    required String username,
+    required Duration? duration,
+    required String reason,
+    required String bannedBy,
+  }) async {
+    final clean = username.trim().toLowerCase();
+    if (clean.isEmpty) return 'Username cannot be empty';
+
+    final now = DateTime.now();
+    final bannedUntil = duration != null ? now.add(duration) : null;
+    final record = BanRecord(
+      username: clean,
+      bannedUntil: bannedUntil,
+      bannedBy: bannedBy,
+      reason: reason.trim().isEmpty ? 'Violation of Terms' : reason.trim(),
+      createdAt: now,
+    );
+
+    // Save locally
+    final currentBans = _loadLocalBans().where((b) => b.username.toLowerCase() != clean).toList();
+    currentBans.insert(0, record);
+    _saveLocalBans(currentBans);
+
+    if (!isConfigured) return null;
+
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        await client!.from('banned_users').upsert(record.toMap(), onConflict: 'username').timeout(const Duration(seconds: 8));
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Notice saving ban to Supabase: $e');
+    }
+
+    return null;
+  }
+
+  Future<String?> unbanUser(String username) async {
+    final clean = username.trim().toLowerCase();
+    if (clean.isEmpty) return 'Invalid username';
+
+    // Remove locally
+    final currentBans = _loadLocalBans().where((b) => b.username.toLowerCase() != clean).toList();
+    _saveLocalBans(currentBans);
+
+    if (!isConfigured) return null;
+
+    try {
+      if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
+      if (_initialized && client != null) {
+        await client!.from('banned_users').delete().eq('username', clean).timeout(const Duration(seconds: 6));
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Notice deleting ban from Supabase: $e');
+    }
+    return null;
+  }
+
+  List<BanRecord> _loadLocalBans() {
+    try {
+      final jsonList = StorageService.instance.getLocalBannedUsersJson();
+      return jsonList.map((str) => BanRecord.fromMap(jsonDecode(str) as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  void _saveLocalBans(List<BanRecord> list) {
+    try {
+      final jsonList = list.map((b) => jsonEncode(b.toMap())).toList();
+      StorageService.instance.saveLocalBannedUsersJson(jsonList);
+    } catch (_) {}
   }
 }

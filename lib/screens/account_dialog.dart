@@ -4,6 +4,8 @@ import '../game/game_theme.dart';
 import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
 import '../utils/user_utils.dart';
+import '../widgets/banned_dialog.dart';
+import 'admin_panel_dialog.dart';
 
 class AccountDialog extends StatefulWidget {
   final PongTheme theme;
@@ -91,6 +93,19 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
 
   void _loadInitialData() async {
     if (_isLoggedIn) {
+      final curName = _supabase.currentUsername;
+      if (curName.isNotEmpty) {
+        final ban = await _supabase.checkBanStatus(curName);
+        if (ban != null && ban.isActive) {
+          await _supabase.signOut();
+          await StorageService.instance.setLoggedIn(false);
+          if (mounted) {
+            BannedDialog.show(context, ban, widget.theme);
+            _rebuildTabController();
+          }
+          return;
+        }
+      }
       final stats = await _supabase.fetchMyStats();
       if (mounted) setState(() => _myStats = stats);
     }
@@ -342,8 +357,17 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           return;
         }
 
-        await StorageService.instance.setLoggedIn(true);
         final username = StorageService.instance.getUsername() ?? email.split('@').first;
+        final ban = await _supabase.checkBanStatus(username);
+        if (ban != null && ban.isActive) {
+          await StorageService.instance.setLoggedIn(false);
+          if (mounted) {
+            BannedDialog.show(context, ban, widget.theme);
+          }
+          return;
+        }
+
+        await StorageService.instance.setLoggedIn(true);
         if (mounted) {
           setState(() {
             _successMessage = 'Welcome back, $username!';
@@ -361,6 +385,19 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           });
         }
       } else {
+        final currentUsername = _supabase.currentUsername;
+        if (currentUsername.isNotEmpty) {
+          final ban = await _supabase.checkBanStatus(currentUsername);
+          if (ban != null && ban.isActive) {
+            await _supabase.signOut();
+            await StorageService.instance.setLoggedIn(false);
+            if (mounted) {
+              BannedDialog.show(context, ban, widget.theme);
+            }
+            return;
+          }
+        }
+
         await StorageService.instance.setLoggedIn(true);
         try {
           await _supabase.syncLocalRecords(
@@ -422,6 +459,14 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     });
 
     try {
+      final ban = await _supabase.checkBanStatus(username);
+      if (ban != null && ban.isActive) {
+        if (mounted) {
+          BannedDialog.show(context, ban, widget.theme);
+        }
+        return;
+      }
+
       await StorageService.instance.saveLocalAccount(
         username: username,
         email: email,
@@ -1114,6 +1159,30 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           ),
         ),
         const Spacer(),
+
+        if (UserUtils.isOwner(rawName)) ...[
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE50914),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                elevation: 4,
+              ),
+              icon: const Icon(Icons.admin_panel_settings, size: 20),
+              label: const Text(
+                'OPEN OWNER ADMIN PANEL',
+                style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 13),
+              ),
+              onPressed: () {
+                AdminPanelDialog.show(context, widget.theme);
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
 
         // Bottom Actions: Sync & Log Out
         Row(

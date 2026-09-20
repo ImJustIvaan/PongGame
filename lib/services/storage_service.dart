@@ -102,4 +102,9 @@ class StorageService {
   Future<void> saveOwnerAutoPlay(bool enabled) async {
     await _prefs?.setBool('owner_auto_play', enabled);
   }
+
+  List<String> getLocalBannedUsersJson() => _prefs?.getStringList('local_banned_users') ?? [];
+  Future<void> saveLocalBannedUsersJson(List<String> list) async {
+    await _prefs?.setStringList('local_banned_users', list);
+  }
 }

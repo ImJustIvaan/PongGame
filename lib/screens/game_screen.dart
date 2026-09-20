@@ -7,6 +7,7 @@ import '../services/fullscreen_service.dart';
 import '../services/sound_service.dart';
 import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
+import '../services/online_match_service.dart';
 import '../utils/user_utils.dart';
 import '../widgets/pong_canvas.dart';
 
@@ -15,13 +16,19 @@ class GameScreen extends StatefulWidget {
   final AiDifficulty difficulty;
   final int targetScore;
   final PongTheme theme;
+  final bool isOnlineHost;
+  final String? onlineRoomId;
+  final String? opponentUsername;
 
   const GameScreen({
     super.key,
     required this.mode,
-    required this.difficulty,
+    this.difficulty = AiDifficulty.medium,
     required this.targetScore,
     required this.theme,
+    this.isOnlineHost = false,
+    this.onlineRoomId,
+    this.opponentUsername,
   });
 
   @override
@@ -36,6 +43,10 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   // Keyboard control states
   final Set<LogicalKeyboardKey> _pressedKeys = {};
   final FocusNode _focusNode = FocusNode();
+
+  bool _opponentDisconnected = false;
+  double _lastBroadcastTime = 0.0;
+  double _elapsedTime = 0.0;
 
   bool get _isOwner => UserUtils.isOwner(SupabaseService.instance.currentUsername);
 
@@ -60,6 +71,42 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       _saveRecords();
     };
 
+    if (widget.mode == GameMode.onlineMultiplayer) {
+      if (widget.isOnlineHost) {
+        OnlineMatchService.instance.onPaddleMoveReceived = (y) {
+          _engine.paddle2Y = y;
+        };
+      } else {
+        OnlineMatchService.instance.onGameStateReceived = (data) {
+          _engine.applyOnlineSync(
+            bx: (data['bx'] as num).toDouble(),
+            by: (data['by'] as num).toDouble(),
+            bvx: (data['bvx'] as num).toDouble(),
+            bvy: (data['bvy'] as num).toDouble(),
+            p1y: (data['p1y'] as num).toDouble(),
+            s1: (data['s1'] as num).toInt(),
+            s2: (data['s2'] as num).toInt(),
+            rally: (data['rally'] as num).toInt(),
+            st: data['st'] as String? ?? 'playing',
+          );
+        };
+        OnlineMatchService.instance.onGameOverReceived = (winner) {
+          _engine.winner = winner;
+          _engine.state = GameState.gameOver;
+          SoundService.instance.playGameOver();
+          _saveRecords();
+        };
+      }
+
+      OnlineMatchService.instance.onOpponentDisconnected = () {
+        if (mounted) {
+          setState(() {
+            _opponentDisconnected = true;
+          });
+        }
+      };
+    }
+
     _ticker = createTicker(_onTick)..start();
   }
 
@@ -77,6 +124,21 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       SupabaseService.instance.saveGameResult(
         won: false,
         score: 0,
+        rally: _engine.maxRally,
+      );
+    } else if (widget.mode == GameMode.twoPlayer) {
+      // Unranked Casual Local 2-Player: strictly do not record wins, scores, or games played
+      return;
+    } else if (widget.mode == GameMode.onlineMultiplayer) {
+      // Ranked Online 1v1 PvP
+      final won = widget.isOnlineHost ? (_engine.winner == 1) : (_engine.winner == 2);
+      final myScore = widget.isOnlineHost ? _engine.score1 : _engine.score2;
+      if (won) {
+        StorageService.instance.saveHighScore(myScore);
+      }
+      SupabaseService.instance.saveGameResult(
+        won: won,
+        score: myScore,
         rally: _engine.maxRally,
       );
     } else {
@@ -102,9 +164,39 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
 
     // Safety clamp dt to avoid physics leaps on lag
     final safeDt = dt.clamp(0.0, 0.04);
+    _elapsedTime += safeDt;
 
     _handleKeyboardMovement(safeDt);
-    _engine.update(safeDt);
+
+    if (widget.mode == GameMode.onlineMultiplayer) {
+      if (widget.isOnlineHost) {
+        _engine.update(safeDt);
+        if (_elapsedTime - _lastBroadcastTime >= 0.033) {
+          _lastBroadcastTime = _elapsedTime;
+          OnlineMatchService.instance.broadcastGameState(
+            ballX: _engine.ballX,
+            ballY: _engine.ballY,
+            ballVx: _engine.ballVx,
+            ballVy: _engine.ballVy,
+            paddle1Y: _engine.paddle1Y,
+            score1: _engine.score1,
+            score2: _engine.score2,
+            currentRally: _engine.currentRally,
+            gameState: _engine.state.name,
+          );
+        }
+        if (_engine.state == GameState.gameOver) {
+          OnlineMatchService.instance.broadcastGameOver(_engine.winner ?? 1);
+        }
+      } else {
+        // Guest mode: update visual screen shake
+        if (_engine.screenShakeIntensity > 0) {
+          _engine.screenShakeIntensity = (_engine.screenShakeIntensity - safeDt * 5.0).clamp(0.0, 1.0);
+        }
+      }
+    } else {
+      _engine.update(safeDt);
+    }
 
     if (mounted) {
       setState(() {});
@@ -127,17 +219,19 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     }
 
     const keySpeed = 1.0;
-    // Player 1 controls: W / S or Up / Down (in 1P mode)
+    // Player 1 controls: W / S or Up / Down (in 1P mode or if online Host)
     if (_pressedKeys.contains(LogicalKeyboardKey.keyW) ||
-        (widget.mode == GameMode.singlePlayer && _pressedKeys.contains(LogicalKeyboardKey.arrowUp))) {
+        ((widget.mode == GameMode.singlePlayer || (widget.mode == GameMode.onlineMultiplayer && widget.isOnlineHost)) &&
+            _pressedKeys.contains(LogicalKeyboardKey.arrowUp))) {
       _engine.movePaddleDelta(1, -keySpeed * dt);
     }
     if (_pressedKeys.contains(LogicalKeyboardKey.keyS) ||
-        (widget.mode == GameMode.singlePlayer && _pressedKeys.contains(LogicalKeyboardKey.arrowDown))) {
+        ((widget.mode == GameMode.singlePlayer || (widget.mode == GameMode.onlineMultiplayer && widget.isOnlineHost)) &&
+            _pressedKeys.contains(LogicalKeyboardKey.arrowDown))) {
       _engine.movePaddleDelta(1, keySpeed * dt);
     }
 
-    // Player 2 controls: Up / Down (in 2P mode)
+    // Player 2 controls: Up / Down (in 2P mode or if online Guest)
     if (widget.mode == GameMode.twoPlayer) {
       if (_pressedKeys.contains(LogicalKeyboardKey.arrowUp)) {
         _engine.movePaddleDelta(2, -keySpeed * dt);
@@ -145,11 +239,23 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       if (_pressedKeys.contains(LogicalKeyboardKey.arrowDown)) {
         _engine.movePaddleDelta(2, keySpeed * dt);
       }
+    } else if (widget.mode == GameMode.onlineMultiplayer && !widget.isOnlineHost) {
+      if (_pressedKeys.contains(LogicalKeyboardKey.arrowUp) || _pressedKeys.contains(LogicalKeyboardKey.keyW)) {
+        _engine.movePaddleDelta(2, -keySpeed * dt);
+        OnlineMatchService.instance.sendGuestPaddleMove(_engine.paddle2Y);
+      }
+      if (_pressedKeys.contains(LogicalKeyboardKey.arrowDown) || _pressedKeys.contains(LogicalKeyboardKey.keyS)) {
+        _engine.movePaddleDelta(2, keySpeed * dt);
+        OnlineMatchService.instance.sendGuestPaddleMove(_engine.paddle2Y);
+      }
     }
   }
 
   @override
   void dispose() {
+    if (widget.mode == GameMode.onlineMultiplayer) {
+      OnlineMatchService.instance.leaveMatch();
+    }
     _ticker.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -171,6 +277,13 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         }
       } else {
         _engine.movePaddle(2, normalizedY);
+      }
+    } else if (widget.mode == GameMode.onlineMultiplayer) {
+      if (widget.isOnlineHost) {
+        _engine.movePaddle(1, normalizedY);
+      } else {
+        _engine.movePaddle(2, normalizedY);
+        OnlineMatchService.instance.sendGuestPaddleMove(_engine.paddle2Y);
       }
     } else {
       // 1P or Practice: touching anywhere or left half controls paddle 1
@@ -497,11 +610,37 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                   ),
                 ),
 
-              // Game Over Overlay
-              if (_engine.state == GameState.gameOver)
+              // Opponent Disconnected Overlay
+              if (_opponentDisconnected)
                 _buildOverlay(
                   scale: scale,
-                  title: _engine.winner == 1 ? 'PLAYER 1 WINS!' : (widget.mode == GameMode.singlePlayer ? 'AI WINS!' : 'PLAYER 2 WINS!'),
+                  title: 'OPPONENT DISCONNECTED',
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.wifi_off, color: Color(0xFFFF1744), size: 48),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Your opponent disconnected from the match.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        style: _buttonStyle(widget.theme.paddle1Color, scale),
+                        icon: const Icon(Icons.home),
+                        label: const Text('RETURN TO MENU'),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Game Over Overlay
+              if (_engine.state == GameState.gameOver && !_opponentDisconnected)
+                _buildOverlay(
+                  scale: scale,
+                  title: _getGameOverTitle(),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -520,22 +659,24 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                         style: TextStyle(color: Colors.white70, fontSize: (14 * scale).roundToDouble()),
                       ),
                       SizedBox(height: 24 * scale),
-                      ElevatedButton.icon(
-                        style: _buttonStyle(widget.theme.paddle1Color, scale),
-                        icon: const Icon(Icons.replay),
-                        label: const Text('PLAY AGAIN'),
-                        onPressed: () {
-                          setState(() {
-                            _engine.score1 = 0;
-                            _engine.score2 = 0;
-                            _engine.currentRally = 0;
-                            _engine.winner = null;
-                            _engine.state = GameState.ready;
-                            _engine.resetServe(servingToPlayer: 1);
-                          });
-                        },
-                      ),
-                      SizedBox(height: 12 * scale),
+                      if (widget.mode != GameMode.onlineMultiplayer) ...[
+                        ElevatedButton.icon(
+                          style: _buttonStyle(widget.theme.paddle1Color, scale),
+                          icon: const Icon(Icons.replay),
+                          label: const Text('PLAY AGAIN'),
+                          onPressed: () {
+                            setState(() {
+                              _engine.score1 = 0;
+                              _engine.score2 = 0;
+                              _engine.currentRally = 0;
+                              _engine.winner = null;
+                              _engine.state = GameState.ready;
+                              _engine.resetServe(servingToPlayer: 1);
+                            });
+                          },
+                        ),
+                        SizedBox(height: 12 * scale),
+                      ],
                       OutlinedButton.icon(
                         style: _outlineButtonStyle(scale),
                         icon: const Icon(Icons.home, color: Colors.white),
@@ -550,6 +691,16 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         ),
       ),
     );
+  }
+
+  String _getGameOverTitle() {
+    if (widget.mode == GameMode.onlineMultiplayer) {
+      final isMeWinner = widget.isOnlineHost ? (_engine.winner == 1) : (_engine.winner == 2);
+      return isMeWinner ? 'VICTORY! YOU WON!' : 'DEFEAT! OPPONENT WON!';
+    }
+    if (_engine.winner == 1) return 'PLAYER 1 WINS!';
+    if (widget.mode == GameMode.singlePlayer) return 'AI WINS!';
+    return 'PLAYER 2 WINS!';
   }
 
   Widget _buildScoreHeader(double scale) {
@@ -572,6 +723,68 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               color: widget.theme.paddle1Color,
               fontSize: (16 * scale).roundToDouble(),
               fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (widget.mode == GameMode.onlineMultiplayer) {
+      final myName = SupabaseService.instance.currentUsername.isNotEmpty
+          ? SupabaseService.instance.currentUsername
+          : 'YOU';
+      final oppName = widget.opponentUsername ?? 'OPPONENT';
+      final p1Name = widget.isOnlineHost ? myName : oppName;
+      final p2Name = widget.isOnlineHost ? oppName : myName;
+
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            p1Name,
+            style: TextStyle(
+              color: widget.theme.paddle1Color,
+              fontSize: (13 * scale).roundToDouble(),
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '${_engine.score1}',
+            style: TextStyle(
+              color: widget.theme.paddle1Color,
+              fontSize: (30 * scale).roundToDouble(),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: (12 * scale).roundToDouble()),
+            child: Text(
+              ':',
+              style: TextStyle(
+                color: widget.theme.tableLineColor.withValues(alpha: 0.8),
+                fontSize: (26 * scale).roundToDouble(),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Text(
+            '${_engine.score2}',
+            style: TextStyle(
+              color: widget.theme.paddle2Color,
+              fontSize: (30 * scale).roundToDouble(),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            p2Name,
+            style: TextStyle(
+              color: widget.theme.paddle2Color,
+              fontSize: (13 * scale).roundToDouble(),
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.0,
             ),
           ),
         ],
