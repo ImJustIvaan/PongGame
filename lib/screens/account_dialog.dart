@@ -134,12 +134,23 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     });
 
     if (!_supabase.isConfigured) {
-      final username = email.split('@').first;
-      await StorageService.instance.saveUsername(username);
+      final isValid = StorageService.instance.validateLocalCredentials(
+        email: email,
+        password: password,
+      );
+      if (!isValid) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Invalid email or password. Please create an account first.';
+        });
+        return;
+      }
+
       await StorageService.instance.setLoggedIn(true);
+      final username = StorageService.instance.getUsername() ?? email.split('@').first;
       setState(() {
         _isLoading = false;
-        _successMessage = 'Logged in as $username';
+        _successMessage = 'Welcome back, $username!';
       });
       _rebuildTabController();
       return;
@@ -188,13 +199,16 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
       _errorMessage = null;
     });
 
-    await StorageService.instance.saveUsername(username);
-    await StorageService.instance.setLoggedIn(true);
+    await StorageService.instance.saveLocalAccount(
+      username: username,
+      email: email,
+      password: password,
+    );
 
     if (!_supabase.isConfigured) {
       setState(() {
         _isLoading = false;
-        _successMessage = 'Account created for $username';
+        _successMessage = 'Account created for $username!';
       });
       _rebuildTabController();
       return;
@@ -457,8 +471,8 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                                     _buildLeaderboardView(glowColor),
                                   ]
                                 : [
-                                    _buildSignInView(glowColor),
                                     _buildSignUpView(glowColor, accentPink),
+                                    _buildSignInView(glowColor),
                                     _buildLeaderboardView(glowColor),
                                   ],
                           ),
@@ -481,7 +495,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
       builder: (context, _) {
         final tabs = _isLoggedIn
             ? ['PROFILE & STATS', 'LEADERBOARD']
-            : ['SIGN IN', 'SIGN UP', 'LEADERBOARD'];
+            : ['SIGN UP', 'SIGN IN', 'LEADERBOARD'];
 
         return Container(
           padding: const EdgeInsets.all(4),
@@ -595,7 +609,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
         const SizedBox(height: 8),
         Center(
           child: TextButton(
-            onPressed: () => _tabController.animateTo(0),
+            onPressed: () => _tabController.animateTo(1),
             child: const Text(
               'Already have an account? SIGN IN',
               style: TextStyle(color: Colors.white60, fontSize: 12),
@@ -638,7 +652,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
         const SizedBox(height: 8),
         Center(
           child: TextButton(
-            onPressed: () => _tabController.animateTo(1),
+            onPressed: () => _tabController.animateTo(0),
             child: const Text(
               'Need an account? SIGN UP',
               style: TextStyle(color: Colors.white60, fontSize: 12),
@@ -735,7 +749,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           ),
 
         Text(
-          _supabase.currentUser?.email ?? 'Active Player Profile',
+          _supabase.currentUser?.email ?? StorageService.instance.getSavedEmail() ?? 'Active Player Profile',
           style: const TextStyle(color: Colors.white54, fontSize: 11),
         ),
         const SizedBox(height: 14),

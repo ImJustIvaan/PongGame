@@ -1,5 +1,4 @@
 import '../utils/user_utils.dart';
-import '../widgets/username_prompt_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../game/game_theme.dart';
@@ -37,10 +36,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     _soundEnabled = StorageService.instance.getSoundEnabled();
     SoundService.instance.isMuted = !_soundEnabled;
 
-    // Check if player hasn't set a username yet
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkFirstTimeUsername();
-    });
+
 
     // Attract mode background demo (AI vs AI playing)
     _attractEngine = PongEngine(mode: GameMode.attractMode);
@@ -77,20 +73,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     );
   }
 
-  void _checkFirstTimeUsername() async {
-    final username = StorageService.instance.getUsername();
-    if (username == null || username.trim().isEmpty) {
-      if (!SupabaseService.instance.isLoggedIn && mounted) {
-        await UsernamePromptDialog.show(context, _theme);
-        if (mounted) setState(() {});
-      }
-    }
-  }
 
-  void _editUsername() async {
-    await UsernamePromptDialog.show(context, _theme);
-    if (mounted) setState(() {});
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -251,7 +234,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       await AccountDialog.show(context, _theme);
                       setState(() {});
                     },
-                    onLongPress: _editUsername,
+                    onLongPress: () async {
+                      await AccountDialog.show(context, _theme);
+                      setState(() {});
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(

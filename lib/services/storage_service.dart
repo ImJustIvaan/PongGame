@@ -3,6 +3,29 @@ import '../game/game_theme.dart';
 import '../game/pong_engine.dart';
 
 class StorageService {
+  String? getSavedEmail() => _prefs?.getString('auth_email');
+  String? getSavedPassword() => _prefs?.getString('auth_password');
+
+  Future<void> saveLocalAccount({
+    required String username,
+    required String email,
+    required String password,
+  }) async {
+    await _prefs?.setString('player_username', username.trim());
+    await _prefs?.setString('auth_email', email.trim().toLowerCase());
+    await _prefs?.setString('auth_password', password);
+    await setLoggedIn(true);
+  }
+
+  bool validateLocalCredentials({
+    required String email,
+    required String password,
+  }) {
+    final savedEmail = getSavedEmail();
+    final savedPassword = getSavedPassword();
+    if (savedEmail == null || savedPassword == null) return false;
+    return savedEmail.toLowerCase() == email.trim().toLowerCase() && savedPassword == password;
+  }
   bool isLoggedIn() => _prefs?.getBool('is_logged_in') ?? false;
 
   Future<void> setLoggedIn(bool value) async {
