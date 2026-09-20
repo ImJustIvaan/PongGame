@@ -250,7 +250,9 @@ class SupabaseService {
 
   // Fetch Top 10 Global Leaderboard
   Future<List<PlayerStats>> fetchLeaderboard({String orderBy = 'high_score', int limit = 10}) async {
-    if (!_initialized) return [];
+    if (!isConfigured) return [];
+    if (!_initialized) await initialize();
+    if (!_initialized || client == null) return [];
 
     try {
       final data = await client!

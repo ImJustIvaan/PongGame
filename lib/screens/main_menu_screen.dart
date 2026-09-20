@@ -210,9 +210,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                         ),
                         _buildIconButton(
                           icon: Icons.leaderboard_outlined,
-                          label: 'SCORES',
+                          label: 'LEADERBOARD',
                           onPressed: () async {
-                            await AccountDialog.show(context, _theme);
+                            final isLogged = StorageService.instance.isLoggedIn() || SupabaseService.instance.isLoggedIn;
+                            final targetTab = isLogged ? 1 : 2;
+                            await AccountDialog.show(context, _theme, initialTab: targetTab);
                             setState(() {});
                           },
                         ),

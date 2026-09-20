@@ -7,14 +7,15 @@ import '../utils/user_utils.dart';
 
 class AccountDialog extends StatefulWidget {
   final PongTheme theme;
+  final int? initialTab;
 
-  const AccountDialog({super.key, required this.theme});
+  const AccountDialog({super.key, required this.theme, this.initialTab});
 
-  static Future<void> show(BuildContext context, PongTheme theme) {
+  static Future<void> show(BuildContext context, PongTheme theme, {int? initialTab}) {
     return showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.85),
-      builder: (_) => AccountDialog(theme: theme),
+      builder: (_) => AccountDialog(theme: theme, initialTab: initialTab),
     );
   }
 
@@ -71,10 +72,14 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
 
   void _initTabController() {
     final count = _isLoggedIn ? 2 : 3;
+    int index = 0;
+    if (widget.initialTab != null) {
+      index = widget.initialTab!.clamp(0, count - 1);
+    }
     _tabController = TabController(
       length: count,
       vsync: this,
-      initialIndex: 0,
+      initialIndex: index,
     );
   }
 
@@ -93,7 +98,6 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
   }
 
   void _fetchLeaderboard() async {
-    if (!_supabase.isConfigured) return;
     setState(() => _isLoadingLeaderboard = true);
     final list = await _supabase.fetchLeaderboard();
     if (mounted) {
