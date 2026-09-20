@@ -181,6 +181,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
+    final double scale = (screenSize.height / 680.0).clamp(0.9, 1.55);
 
     return Scaffold(
       backgroundColor: widget.theme.backgroundColor,
@@ -232,7 +233,10 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               // HUD & Scores
               SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: (20 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                    vertical: (12 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                  ),
                   child: Column(
                     children: [
                       // Top Row: Back, Rally/Scores, Auto-Play Toggle & Pause
@@ -243,7 +247,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
                             onPressed: () => Navigator.of(context).pop(),
                           ),
-                          _buildScoreHeader(),
+                          _buildScoreHeader(scale),
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -386,10 +390,13 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               if (_engine.state == GameState.ready && !(_isOwner && _engine.ownerAutoPlay))
                 Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: (24 * scale).roundToDouble(),
+                      vertical: (12 * scale).roundToDouble(),
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(16 * scale),
                       border: Border.all(color: widget.theme.paddle1Color.withValues(alpha: 0.6)),
                     ),
                     child: Text(
@@ -397,8 +404,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                       style: TextStyle(
                         color: widget.theme.paddle1Color,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
-                        fontSize: 14,
+                        letterSpacing: 1.5 * scale,
+                        fontSize: (14 * scale).roundToDouble(),
                       ),
                     ),
                   ),
@@ -407,18 +414,19 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               // Pause Overlay
               if (_engine.state == GameState.paused)
                 _buildOverlay(
+                  scale: scale,
                   title: 'GAME PAUSED',
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       ElevatedButton.icon(
-                        style: _buttonStyle(widget.theme.paddle1Color),
+                        style: _buttonStyle(widget.theme.paddle1Color, scale),
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('RESUME'),
                         onPressed: () => _engine.togglePause(),
                       ),
                       if (_isOwner) ...[
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12 * scale),
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
                             foregroundColor: _engine.ownerAutoPlay ? const Color(0xFF00E5FF) : Colors.white70,
@@ -426,8 +434,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                               color: _engine.ownerAutoPlay ? const Color(0xFF00E5FF) : Colors.white30,
                               width: 1.5,
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: (18 * scale).roundToDouble(),
+                              vertical: (12 * scale).roundToDouble(),
+                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12 * scale)),
                           ),
                           icon: Icon(
                             Icons.bolt,
@@ -443,9 +454,9 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                           onPressed: _toggleOwnerAutoPlay,
                         ),
                       ],
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12 * scale),
                       OutlinedButton.icon(
-                        style: _outlineButtonStyle(),
+                        style: _outlineButtonStyle(scale),
                         icon: const Icon(Icons.refresh, color: Colors.white),
                         label: const Text('RESTART', style: TextStyle(color: Colors.white)),
                         onPressed: () {
@@ -458,12 +469,12 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                           });
                         },
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12 * scale),
                       ValueListenableBuilder<bool>(
                         valueListenable: FullscreenService.instance.isFullScreen,
                         builder: (context, isFs, _) {
                           return OutlinedButton.icon(
-                            style: _outlineButtonStyle(),
+                            style: _outlineButtonStyle(scale),
                             icon: Icon(
                               isFs ? Icons.fullscreen_exit : Icons.fullscreen,
                               color: Colors.white,
@@ -476,7 +487,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                           );
                         },
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12 * scale),
                       TextButton.icon(
                         icon: const Icon(Icons.home, color: Colors.white70),
                         label: const Text('EXIT TO MENU', style: TextStyle(color: Colors.white70)),
@@ -489,6 +500,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               // Game Over Overlay
               if (_engine.state == GameState.gameOver)
                 _buildOverlay(
+                  scale: scale,
                   title: _engine.winner == 1 ? 'PLAYER 1 WINS!' : (widget.mode == GameMode.singlePlayer ? 'AI WINS!' : 'PLAYER 2 WINS!'),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -497,19 +509,19 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                         '${_engine.score1}  -  ${_engine.score2}',
                         style: TextStyle(
                           color: widget.theme.ballColor,
-                          fontSize: 38,
+                          fontSize: (38 * scale).roundToDouble(),
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 4,
+                          letterSpacing: 4 * scale,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8 * scale),
                       Text(
                         'Max Rally: ${_engine.maxRally}',
-                        style: const TextStyle(color: Colors.white70, fontSize: 14),
+                        style: TextStyle(color: Colors.white70, fontSize: (14 * scale).roundToDouble()),
                       ),
-                      const SizedBox(height: 24),
+                      SizedBox(height: 24 * scale),
                       ElevatedButton.icon(
-                        style: _buttonStyle(widget.theme.paddle1Color),
+                        style: _buttonStyle(widget.theme.paddle1Color, scale),
                         icon: const Icon(Icons.replay),
                         label: const Text('PLAY AGAIN'),
                         onPressed: () {
@@ -523,9 +535,9 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                           });
                         },
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12 * scale),
                       OutlinedButton.icon(
-                        style: _outlineButtonStyle(),
+                        style: _outlineButtonStyle(scale),
                         icon: const Icon(Icons.home, color: Colors.white),
                         label: const Text('MAIN MENU', style: TextStyle(color: Colors.white)),
                         onPressed: () => Navigator.of(context).pop(),
@@ -540,7 +552,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildScoreHeader() {
+  Widget _buildScoreHeader(double scale) {
     if (widget.mode == GameMode.practice) {
       return Row(
         children: [
@@ -548,17 +560,17 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
             'SCORE: ${_engine.currentRally}',
             style: TextStyle(
               color: widget.theme.ballColor,
-              fontSize: 24,
+              fontSize: (24 * scale).roundToDouble(),
               fontWeight: FontWeight.bold,
-              letterSpacing: 2,
+              letterSpacing: 2 * scale,
             ),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14 * scale),
           Text(
             'BEST: ${_engine.maxRally}',
             style: TextStyle(
               color: widget.theme.paddle1Color,
-              fontSize: 16,
+              fontSize: (16 * scale).roundToDouble(),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -572,17 +584,17 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           '${_engine.score1}',
           style: TextStyle(
             color: widget.theme.paddle1Color,
-            fontSize: 34,
+            fontSize: (34 * scale).roundToDouble(),
             fontWeight: FontWeight.w900,
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: (16 * scale).roundToDouble()),
           child: Text(
             ':',
             style: TextStyle(
               color: widget.theme.tableLineColor.withValues(alpha: 0.8),
-              fontSize: 28,
+              fontSize: (28 * scale).roundToDouble(),
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -591,7 +603,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           '${_engine.score2}',
           style: TextStyle(
             color: widget.theme.paddle2Color,
-            fontSize: 34,
+            fontSize: (34 * scale).roundToDouble(),
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -599,22 +611,23 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildOverlay({required String title, required Widget child}) {
+  Widget _buildOverlay({required double scale, required String title, required Widget child}) {
+    final width = (320 * scale).clamp(320.0, 480.0);
     return Container(
       color: Colors.black.withValues(alpha: 0.82),
       child: Center(
         child: Container(
-          width: 320,
-          padding: const EdgeInsets.all(28),
+          width: width,
+          padding: EdgeInsets.all((28 * scale).roundToDouble()),
           decoration: BoxDecoration(
             color: widget.theme.backgroundColor.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(24 * scale),
             border: Border.all(color: widget.theme.paddle1Color.withValues(alpha: 0.8), width: 2),
             boxShadow: [
               BoxShadow(
                 color: widget.theme.paddle1Color.withValues(alpha: 0.25),
-                blurRadius: 20,
-                spreadRadius: 2,
+                blurRadius: 20 * scale,
+                spreadRadius: 2 * scale,
               )
             ],
           ),
@@ -626,12 +639,12 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: widget.theme.ballColor,
-                  fontSize: 22,
+                  fontSize: (22 * scale).roundToDouble(),
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
+                  letterSpacing: 2 * scale,
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20 * scale),
               child,
             ],
           ),
@@ -640,21 +653,31 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     );
   }
 
-  ButtonStyle _buttonStyle(Color color) {
+  ButtonStyle _buttonStyle(Color color, [double scale = 1.0]) {
     return ElevatedButton.styleFrom(
       backgroundColor: color,
       foregroundColor: Colors.black,
-      minimumSize: const Size(220, 48),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      textStyle: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
+      minimumSize: Size((220 * scale).roundToDouble(), (48 * scale).roundToDouble()),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12 * scale)),
+      textStyle: TextStyle(
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+        fontSize: (14 * scale).roundToDouble(),
+      ),
     );
   }
 
-  ButtonStyle _outlineButtonStyle() {
+  ButtonStyle _outlineButtonStyle([double scale = 1.0]) {
     return OutlinedButton.styleFrom(
-      minimumSize: const Size(220, 48),
+      foregroundColor: Colors.white,
       side: const BorderSide(color: Colors.white38),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      minimumSize: Size((220 * scale).roundToDouble(), (48 * scale).roundToDouble()),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12 * scale)),
+      textStyle: TextStyle(
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+        fontSize: (14 * scale).roundToDouble(),
+      ),
     );
   }
 }

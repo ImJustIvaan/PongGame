@@ -66,6 +66,13 @@ class _PongPainter extends CustomPainter {
       currentY += dashHeight + dashGap;
     }
 
+    // Top & Bottom Court Boundaries
+    final boundaryPaint = Paint()
+      ..color = theme.tableLineColor.withValues(alpha: 0.45)
+      ..strokeWidth = 2.5;
+    canvas.drawLine(const Offset(0, 1.5), Offset(size.width, 1.5), boundaryPaint);
+    canvas.drawLine(Offset(0, size.height - 1.5), Offset(size.width, size.height - 1.5), boundaryPaint);
+
     // Wall bounce barrier in practice mode
     if (engine.mode == GameMode.practice) {
       final wallPaint = Paint()

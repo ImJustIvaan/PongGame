@@ -111,6 +111,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
   Widget build(BuildContext context) {
     final highScore = StorageService.instance.getHighScore();
     final bestRally = StorageService.instance.getBestRally();
+    final screenSize = MediaQuery.of(context).size;
+    // Responsive scale: 1.0 for default window (680h), scaling up to 1.5x on 1080p+ fullscreen
+    final double scale = (screenSize.height / 680.0).clamp(0.85, 1.55);
 
     return Scaffold(
       backgroundColor: _theme.backgroundColor,
@@ -129,7 +132,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: (16 * scale).roundToDouble(),
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -139,31 +145,31 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: _theme.ballColor,
-                        fontSize: 38,
+                        fontSize: (38 * scale).roundToDouble(),
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 3,
+                        letterSpacing: 3 * scale,
                         shadows: _theme.hasGlow
                             ? [
                                 Shadow(
                                   color: _theme.paddle1Color,
-                                  blurRadius: 28,
+                                  blurRadius: 28 * scale,
                                 )
                               ]
                             : null,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: (4 * scale).roundToDouble()),
                     Text(
                       'Are you game?',
                       style: TextStyle(
                         color: _theme.paddle1Color,
-                        fontSize: 15,
+                        fontSize: (15 * scale).roundToDouble(),
                         fontStyle: FontStyle.italic,
                         fontWeight: FontWeight.w600,
-                        letterSpacing: 2,
+                        letterSpacing: 2 * scale,
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    SizedBox(height: (30 * scale).roundToDouble()),
 
                     // Play Buttons
                     _buildPlayButton(
@@ -171,50 +177,54 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       subtitle: 'Difficulty: ${_difficulty.name.toUpperCase()}',
                       icon: Icons.person,
                       color: _theme.paddle1Color,
+                      scale: scale,
                       onTap: () => _startGame(GameMode.singlePlayer),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: (14 * scale).roundToDouble()),
 
                     _buildPlayButton(
                       title: '2 PLAYERS  (LOCAL)',
                       subtitle: 'Shared Screen / Dual Keys',
                       icon: Icons.people,
                       color: _theme.paddle2Color,
+                      scale: scale,
                       onTap: () => _startGame(GameMode.twoPlayer),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: (14 * scale).roundToDouble()),
 
                     _buildPlayButton(
                       title: 'PRACTICE RALLY',
                       subtitle: 'Solo Rebound Wall',
                       icon: Icons.fitness_center,
                       color: _theme.ballColor,
+                      scale: scale,
                       onTap: () => _startGame(GameMode.practice),
                     ),
-                    const SizedBox(height: 28),
+                    SizedBox(height: (26 * scale).roundToDouble()),
 
                     // Difficulty & Target Score Selectors
-                    _buildOptionsRow(),
+                    _buildOptionsRow(scale),
 
-                    const SizedBox(height: 24),
+                    SizedBox(height: (22 * scale).roundToDouble()),
 
                     // Bottom Bar: Theme switcher, sound toggle, stats
                     Wrap(
                       alignment: WrapAlignment.center,
-                      spacing: 10,
-                      runSpacing: 8,
+                      spacing: (10 * scale).roundToDouble(),
+                      runSpacing: (8 * scale).roundToDouble(),
                       children: [
                         _buildIconButton(
                           icon: Icons.palette_outlined,
                           label: _theme.name,
+                          scale: scale,
                           onPressed: _showThemePicker,
                         ),
                         _buildIconButton(
                           icon: Icons.leaderboard_outlined,
                           label: 'LEADERBOARD',
+                          scale: scale,
                           onPressed: () async {
                             final isLogged = StorageService.instance.isLoggedIn() || SupabaseService.instance.isLoggedIn;
-                            // If logged in: tab 1 is Leaderboard. If logged out: tab 0 is Leaderboard.
                             final targetTab = isLogged ? 1 : 0;
                             await AccountDialog.show(context, _theme, initialTab: targetTab);
                             setState(() {});
@@ -223,6 +233,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                         _buildIconButton(
                           icon: _soundEnabled ? Icons.volume_up : Icons.volume_off,
                           label: _soundEnabled ? 'SOUND ON' : 'MUTED',
+                          scale: scale,
                           onPressed: () {
                             setState(() {
                               _soundEnabled = !_soundEnabled;
@@ -237,6 +248,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                             return _buildIconButton(
                               icon: isFs ? Icons.fullscreen_exit : Icons.fullscreen,
                               label: isFs ? 'EXIT FULL' : 'FULLSCREEN',
+                              scale: scale,
                               onPressed: () => FullscreenService.instance.toggle(),
                             );
                           },
@@ -244,16 +256,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       ],
                     ),
 
-                    const SizedBox(height: 18),
+                    SizedBox(height: (16 * scale).roundToDouble()),
 
                     // Stats summary
                     if (highScore > 0 || bestRally > 0)
                       Text(
                         'HIGH SCORE: $highScore   •   BEST RALLY: $bestRally',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white54,
-                          fontSize: 12,
-                          letterSpacing: 1.5,
+                          fontSize: (12 * scale).roundToDouble(),
+                          letterSpacing: 1.5 * scale,
                         ),
                       ),
                   ],
@@ -274,7 +286,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                     borderRadius: BorderRadius.circular(20),
                     onTap: () => FullscreenService.instance.toggle(),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                        vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF090B1E).withValues(alpha: 0.85),
                         borderRadius: BorderRadius.circular(20),
@@ -285,7 +300,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                         children: [
                           Icon(
                             isFs ? Icons.fullscreen_exit : Icons.fullscreen,
-                            size: 16,
+                            size: (16 * scale.clamp(1.0, 1.3)).roundToDouble(),
                             color: _theme.paddle1Color,
                           ),
                           const SizedBox(width: 5),
@@ -293,7 +308,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                             isFs ? 'EXIT' : 'FULLSCREEN',
                             style: TextStyle(
                               color: _theme.paddle1Color,
-                              fontSize: 11,
+                              fontSize: (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.0,
                             ),
@@ -329,7 +344,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       setState(() {});
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: (12 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                        vertical: (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF090B1E).withValues(alpha: 0.85),
                         borderRadius: BorderRadius.circular(20),
@@ -382,18 +400,20 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     required String subtitle,
     required IconData icon,
     required Color color,
+    required double scale,
     required VoidCallback onTap,
   }) {
+    final btnWidth = (320 * scale).clamp(320.0, 480.0);
     return Container(
-      width: 320,
+      width: btnWidth,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16 * scale),
         boxShadow: _theme.hasGlow
             ? [
                 BoxShadow(
                   color: color.withValues(alpha: 0.25),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
+                  blurRadius: 14 * scale,
+                  offset: Offset(0, 4 * scale),
                 )
               ]
             : null,
@@ -402,22 +422,25 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: Colors.black,
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          padding: EdgeInsets.symmetric(
+            vertical: (16 * scale).roundToDouble(),
+            horizontal: (20 * scale).roundToDouble(),
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16 * scale)),
         ),
         onPressed: onTap,
         child: Row(
           children: [
-            Icon(icon, size: 28, color: Colors.black),
-            const SizedBox(width: 16),
+            Icon(icon, size: (28 * scale).roundToDouble(), color: Colors.black),
+            SizedBox(width: (16 * scale).roundToDouble()),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 16,
+                    style: TextStyle(
+                      fontSize: (16 * scale).roundToDouble(),
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1.2,
                       color: Colors.black,
@@ -426,7 +449,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                   Text(
                     subtitle,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: (11 * scale).roundToDouble(),
                       fontWeight: FontWeight.w600,
                       color: Colors.black.withValues(alpha: 0.7),
                     ),
@@ -434,20 +457,24 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black54),
+            Icon(Icons.arrow_forward_ios, size: (16 * scale).roundToDouble(), color: Colors.black54),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildOptionsRow() {
+  Widget _buildOptionsRow(double scale) {
+    final optWidth = (320 * scale).clamp(320.0, 480.0);
     return Container(
-      width: 320,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      width: optWidth,
+      padding: EdgeInsets.symmetric(
+        horizontal: (14 * scale).roundToDouble(),
+        vertical: (12 * scale).roundToDouble(),
+      ),
       decoration: BoxDecoration(
         color: Colors.black45,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16 * scale),
         border: Border.all(color: Colors.white12),
       ),
       child: Column(
@@ -455,11 +482,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('AI LEVEL:', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+              Text('AI LEVEL:', style: TextStyle(color: Colors.white70, fontSize: (12 * scale).roundToDouble(), fontWeight: FontWeight.bold)),
               DropdownButton<AiDifficulty>(
                 value: _difficulty,
                 dropdownColor: const Color(0xFF151520),
-                style: TextStyle(color: _theme.paddle1Color, fontWeight: FontWeight.bold, fontSize: 13),
+                style: TextStyle(color: _theme.paddle1Color, fontWeight: FontWeight.bold, fontSize: (13 * scale).roundToDouble()),
                 underline: const SizedBox(),
                 items: AiDifficulty.values.map((d) {
                   return DropdownMenuItem(
@@ -476,15 +503,15 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
               ),
             ],
           ),
-          const Divider(color: Colors.white10, height: 14),
+          Divider(color: Colors.white10, height: (14 * scale).roundToDouble()),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('FIRST TO:', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+              Text('FIRST TO:', style: TextStyle(color: Colors.white70, fontSize: (12 * scale).roundToDouble(), fontWeight: FontWeight.bold)),
               DropdownButton<int>(
                 value: _targetScore,
                 dropdownColor: const Color(0xFF151520),
-                style: TextStyle(color: _theme.paddle1Color, fontWeight: FontWeight.bold, fontSize: 13),
+                style: TextStyle(color: _theme.paddle1Color, fontWeight: FontWeight.bold, fontSize: (13 * scale).roundToDouble()),
                 underline: const SizedBox(),
                 items: [5, 7, 11].map((pts) {
                   return DropdownMenuItem<int>(
@@ -509,18 +536,26 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
   Widget _buildIconButton({
     required IconData icon,
     required String label,
+    required double scale,
     required VoidCallback onPressed,
   }) {
     return OutlinedButton.icon(
       style: OutlinedButton.styleFrom(
         side: const BorderSide(color: Colors.white24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12 * scale)),
+        padding: EdgeInsets.symmetric(
+          horizontal: (14 * scale).roundToDouble(),
+          vertical: (10 * scale).roundToDouble(),
+        ),
       ),
-      icon: Icon(icon, size: 18, color: Colors.white),
+      icon: Icon(icon, size: (18 * scale).roundToDouble(), color: Colors.white),
       label: Text(
         label,
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: (12 * scale).roundToDouble(),
+          fontWeight: FontWeight.bold,
+        ),
       ),
       onPressed: onPressed,
     );
