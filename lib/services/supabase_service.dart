@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'storage_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -40,7 +42,23 @@ class SupabaseService {
   bool get isInitialized => _initialized;
   bool get isConfigured => SupabaseConfig.isConfigured;
 
-  SupabaseClient? get client => _initialized ? Supabase.instance.client : null;
+  SupabaseClient? get client {
+    if (_initialized) {
+      try {
+        return Supabase.instance.client;
+      } catch (_) {
+        return null;
+      }
+    }
+    try {
+      final c = Supabase.instance.client;
+      _initialized = true;
+      return c;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Stream<AuthState>? get authStateChanges => client?.auth.onAuthStateChange;
   User? get currentUser => client?.auth.currentUser;
   bool get isLoggedIn => (currentUser != null) || StorageService.instance.isLoggedIn();
@@ -60,6 +78,13 @@ class SupabaseService {
   }
 
   Future<bool> initialize() async {
+    if (_initialized) return true;
+    try {
+      final _ = Supabase.instance.client;
+      _initialized = true;
+      return true;
+    } catch (_) {}
+
     await SupabaseConfig.load();
     if (!SupabaseConfig.isConfigured) {
       debugPrint('Supabase credentials not configured yet. Running in offline/guest mode.');
@@ -77,6 +102,11 @@ class SupabaseService {
       return true;
     } catch (e) {
       debugPrint('Failed to initialize Supabase: $e');
+      try {
+        final _ = Supabase.instance.client;
+        _initialized = true;
+        return true;
+      } catch (_) {}
       _initialized = false;
       return false;
     }
@@ -124,7 +154,7 @@ class SupabaseService {
         password: password,
       );
       if (res.user == null) {
-        return 'Sign in failed.';
+        return 'Sign in failed. Check your credentials.';
       }
       return null; // Success
     } on AuthException catch (e) {
@@ -251,20 +281,51 @@ class SupabaseService {
   // Fetch Top 10 Global Leaderboard
   Future<List<PlayerStats>> fetchLeaderboard({String orderBy = 'high_score', int limit = 10}) async {
     if (!isConfigured) return [];
-    if (!_initialized) await initialize();
-    if (!_initialized || client == null) return [];
 
+    // 1. Try Supabase Client SDK with timeout
     try {
-      final data = await client!
-          .from('game_stats')
-          .select()
-          .order(orderBy, ascending: false)
-          .limit(limit);
+      if (!_initialized) {
+        await initialize().timeout(const Duration(seconds: 4));
+      }
+      if (_initialized && client != null) {
+        final data = await client!
+            .from('game_stats')
+            .select()
+            .order(orderBy, ascending: false)
+            .limit(limit)
+            .timeout(const Duration(seconds: 5));
 
-      return (data as List).map((row) => PlayerStats.fromMap(row as Map<String, dynamic>)).toList();
+        final list = (data as List).map((row) => PlayerStats.fromMap(row as Map<String, dynamic>)).toList();
+        if (list.isNotEmpty) return list;
+      }
     } catch (e) {
-      debugPrint('Error fetching leaderboard: $e');
-      return [];
+      debugPrint('Supabase client SDK fetch notice: $e');
     }
+
+    // 2. Direct REST Fallback (reliable across Windows Desktop, Web, Android, iOS)
+    try {
+      final uri = Uri.parse(
+        '${SupabaseConfig.url}/rest/v1/game_stats?select=*&order=$orderBy.desc&limit=$limit',
+      );
+      final res = await http.get(
+        uri,
+        headers: {
+          'apikey': SupabaseConfig.anonKey,
+          'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is List) {
+          return decoded.map((row) => PlayerStats.fromMap(row as Map<String, dynamic>)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Direct REST fetchLeaderboard fallback error: $e');
+    }
+
+    return [];
   }
 }

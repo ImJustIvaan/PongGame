@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../game/game_theme.dart';
 import '../game/pong_engine.dart';
+import '../services/fullscreen_service.dart';
 import '../services/sound_service.dart';
 import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
@@ -226,9 +227,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                             setState(() {
                               _soundEnabled = !_soundEnabled;
                               SoundService.instance.isMuted = !_soundEnabled;
-    _initAuthListener();
                               StorageService.instance.saveSoundEnabled(_soundEnabled);
                             });
+                          },
+                        ),
+                        ValueListenableBuilder<bool>(
+                          valueListenable: FullscreenService.instance.isFullScreen,
+                          builder: (context, isFs, _) {
+                            return _buildIconButton(
+                              icon: isFs ? Icons.fullscreen_exit : Icons.fullscreen,
+                              label: isFs ? 'EXIT FULL' : 'FULLSCREEN',
+                              onPressed: () => FullscreenService.instance.toggle(),
+                            );
                           },
                         ),
                       ],
@@ -248,6 +258,51 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       ),
                   ],
                 ),
+              ),
+            ),
+          ),
+
+          // Top-left Fullscreen toggle button
+          Positioned(
+            top: 12,
+            left: 14,
+            child: SafeArea(
+              child: ValueListenableBuilder<bool>(
+                valueListenable: FullscreenService.instance.isFullScreen,
+                builder: (context, isFs, _) {
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => FullscreenService.instance.toggle(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF090B1E).withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isFs ? Icons.fullscreen_exit : Icons.fullscreen,
+                            size: 16,
+                            color: _theme.paddle1Color,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            isFs ? 'EXIT' : 'FULLSCREEN',
+                            style: TextStyle(
+                              color: _theme.paddle1Color,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),

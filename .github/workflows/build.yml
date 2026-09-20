@@ -135,9 +135,9 @@ jobs:
           name: PongGame-Web-Release
           path: build/web
 
-  # 5. WINDOWS BUILD (Optional desktop target)
+  # 5. WINDOWS BUILD (Inno Setup Standalone Installer)
   build-windows:
-    name: Build Windows Executable
+    name: Build Windows Installer
     needs: test
     runs-on: windows-latest
     steps:
@@ -158,11 +158,18 @@ jobs:
           cp .env.example .env || copy .env.example .env || true
           flutter pub get
 
-      - name: Build Windows
+      - name: Build Windows Release
         run: flutter build windows --release
 
-      - name: Upload Windows Bundle
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Compile Inno Setup Installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" windows/installer/pong_game_setup.iss
+
+      - name: Upload Windows Standalone Setup
         uses: actions/upload-artifact@v4
         with:
-          name: PongGame-Windows-Release
-          path: build/windows/x64/runner/Release
+          name: ThePongGame-Windows-Setup
+          path: build/windows/installer/ThePongGame-Setup.exe

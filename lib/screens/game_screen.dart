@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import '../game/game_theme.dart';
 import '../game/pong_engine.dart';
+import '../services/fullscreen_service.dart';
 import '../services/sound_service.dart';
 import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
@@ -202,6 +203,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
               if (_isOwner) {
                 _toggleOwnerAutoPlay();
               }
+            } else if (event.logicalKey == LogicalKeyboardKey.f11) {
+              FullscreenService.instance.toggle();
             }
           } else if (event is KeyUpEvent) {
             _pressedKeys.remove(event.logicalKey);
@@ -297,6 +300,19 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                     ),
                                   ),
                                 ),
+                              ValueListenableBuilder<bool>(
+                                valueListenable: FullscreenService.instance.isFullScreen,
+                                builder: (context, isFs, _) {
+                                  return IconButton(
+                                    tooltip: isFs ? 'Exit Fullscreen (F11)' : 'Fullscreen (F11)',
+                                    icon: Icon(
+                                      isFs ? Icons.fullscreen_exit : Icons.fullscreen,
+                                      color: Colors.white70,
+                                    ),
+                                    onPressed: () => FullscreenService.instance.toggle(),
+                                  );
+                                },
+                              ),
                               IconButton(
                                 icon: Icon(
                                   _engine.state == GameState.paused ? Icons.play_arrow : Icons.pause,
@@ -440,6 +456,24 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                             _engine.state = GameState.ready;
                             _engine.resetServe(servingToPlayer: 1);
                           });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      ValueListenableBuilder<bool>(
+                        valueListenable: FullscreenService.instance.isFullScreen,
+                        builder: (context, isFs, _) {
+                          return OutlinedButton.icon(
+                            style: _outlineButtonStyle(),
+                            icon: Icon(
+                              isFs ? Icons.fullscreen_exit : Icons.fullscreen,
+                              color: Colors.white,
+                            ),
+                            label: Text(
+                              isFs ? 'EXIT FULLSCREEN' : 'FULLSCREEN',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            onPressed: () => FullscreenService.instance.toggle(),
+                          );
                         },
                       ),
                       const SizedBox(height: 12),

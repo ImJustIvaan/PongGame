@@ -98,13 +98,23 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
   }
 
   void _fetchLeaderboard() async {
+    if (!mounted) return;
     setState(() => _isLoadingLeaderboard = true);
-    final list = await _supabase.fetchLeaderboard();
-    if (mounted) {
-      setState(() {
-        _leaderboard = list;
-        _isLoadingLeaderboard = false;
-      });
+    try {
+      final list = await _supabase.fetchLeaderboard().timeout(const Duration(seconds: 8));
+      if (mounted) {
+        setState(() {
+          _leaderboard = list;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading leaderboard in dialog: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingLeaderboard = false;
+        });
+      }
     }
   }
 
@@ -1102,6 +1112,17 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
             Text(
               'HIGH SCORE: $localHigh   •   BEST RALLY: $localBestRally',
               style: TextStyle(color: cyan, fontSize: 13, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: cyan,
+                side: BorderSide(color: cyan.withValues(alpha: 0.6)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('RELOAD LEADERBOARD', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              onPressed: _fetchLeaderboard,
             ),
           ],
         ),
