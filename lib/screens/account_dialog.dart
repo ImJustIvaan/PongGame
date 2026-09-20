@@ -107,6 +107,30 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
         }
       }
       final stats = await _supabase.fetchMyStats();
+      if (stats != null) {
+        await StorageService.instance.syncFromRemoteStats(
+          level: stats.level,
+          coins: stats.coins,
+          kills: stats.kills,
+          wins: stats.wins,
+          highScore: stats.highScore,
+          bestRally: stats.bestRally,
+        );
+      }
+      final localCoins = StorageService.instance.getCoins();
+      final localLevel = StorageService.instance.getLevel();
+      final localKills = StorageService.instance.getKills();
+      final localWins = StorageService.instance.getWins();
+      if (localCoins > (stats?.coins ?? 0) || localLevel > (stats?.level ?? 1)) {
+        await _supabase.syncLocalRecords(
+          StorageService.instance.getHighScore(),
+          StorageService.instance.getBestRally(),
+          localLevel: localLevel,
+          localCoins: localCoins,
+          localKills: localKills,
+          localWins: localWins,
+        );
+      }
       if (mounted) setState(() => _myStats = stats);
     }
     _fetchLeaderboard();
@@ -762,12 +786,12 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                     // Tab View
                     Flexible(
                       child: SizedBox(
-                        height: (MediaQuery.of(context).size.height * 0.70).clamp(isMobile ? 440.0 : 470.0, 580.0),
+                        height: (MediaQuery.of(context).size.height * 0.74).clamp(isMobile ? 470.0 : 490.0, 620.0),
                         child: TabBarView(
                           controller: _tabController,
                           children: loggedIn
                               ? [
-                                  _buildProfileView(glowColor),
+                                  _buildProfileView(glowColor, isMobile),
                                   _buildLeaderboardView(glowColor),
                                 ]
                               : [
@@ -1051,24 +1075,24 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     );
   }
 
-  Widget _buildProfileView(Color cyan) {
+  Widget _buildProfileView(Color cyan, bool isMobile) {
     final rawName = _supabase.currentUsername;
     final isVerified = UserUtils.isVerified(rawName);
-    final highScore = _myStats?.highScore ?? StorageService.instance.getHighScore();
-    final bestRally = _myStats?.bestRally ?? StorageService.instance.getBestRally();
-    final wins = _myStats?.wins ?? StorageService.instance.getWins();
-    final kills = _myStats?.kills ?? StorageService.instance.getKills();
-    final level = _myStats?.level ?? StorageService.instance.getLevel();
-    final coins = _myStats?.coins ?? StorageService.instance.getCoins();
+    final highScore = [ _myStats?.highScore ?? 0, StorageService.instance.getHighScore() ].reduce((a, b) => a > b ? a : b);
+    final bestRally = [ _myStats?.bestRally ?? 0, StorageService.instance.getBestRally() ].reduce((a, b) => a > b ? a : b);
+    final wins = [ _myStats?.wins ?? 0, StorageService.instance.getWins() ].reduce((a, b) => a > b ? a : b);
+    final kills = [ _myStats?.kills ?? 0, StorageService.instance.getKills() ].reduce((a, b) => a > b ? a : b);
+    final level = [ _myStats?.level ?? 1, StorageService.instance.getLevel() ].reduce((a, b) => a > b ? a : b);
+    final coins = [ _myStats?.coins ?? 0, StorageService.instance.getCoins() ].reduce((a, b) => a > b ? a : b);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: isMobile ? 8 : 12),
       child: Column(
         children: [
-        const SizedBox(height: 4),
+        SizedBox(height: isMobile ? 2 : 4),
         Container(
-          width: 68,
-          height: 68,
+          width: isMobile ? 52 : 68,
+          height: isMobile ? 52 : 68,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: cyan.withValues(alpha: 0.15),
@@ -1086,14 +1110,14 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
               rawName.isNotEmpty ? rawName[0].toUpperCase() : 'P',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 30,
+                fontSize: isMobile ? 22 : 30,
                 fontWeight: FontWeight.w900,
                 shadows: [Shadow(color: cyan, blurRadius: 12)],
               ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: isMobile ? 4 : 8),
 
         // Username + Verified Checkmark
         Row(
@@ -1102,20 +1126,20 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           children: [
             Text(
               rawName,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
-                fontSize: 20,
+                fontSize: isMobile ? 18 : 20,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.2,
               ),
             ),
-            if (isVerified) UserUtils.verifiedBadge(size: 20),
+            if (isVerified) UserUtils.verifiedBadge(size: isMobile ? 16 : 20),
           ],
         ),
 
         if (isVerified)
           Container(
-            margin: const EdgeInsets.only(top: 4, bottom: 2),
+            margin: const EdgeInsets.only(top: 2, bottom: 2),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
               color: const Color(0x2200E5FF),
@@ -1125,13 +1149,13 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.verified, size: 12, color: Color(0xFF00E5FF)),
+                Icon(Icons.verified, size: 11, color: Color(0xFF00E5FF)),
                 SizedBox(width: 4),
                 Text(
                   'VERIFIED PLAYER',
                   style: TextStyle(
                     color: Color(0xFF00E5FF),
-                    fontSize: 9,
+                    fontSize: 8.5,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.2,
                   ),
@@ -1142,14 +1166,14 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
 
         Text(
           _supabase.currentUser?.email ?? StorageService.instance.getSavedEmail() ?? 'Active Player Profile',
-          style: const TextStyle(color: Colors.white54, fontSize: 11),
+          style: TextStyle(color: Colors.white54, fontSize: isMobile ? 10 : 11),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: isMobile ? 8 : 12),
 
         // Level & Coins Banner
         Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: isMobile ? 6 : 8),
           decoration: BoxDecoration(
             color: const Color(0xFF10132B),
             borderRadius: BorderRadius.circular(14),
@@ -1163,38 +1187,38 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
             children: [
               Row(
                 children: [
-                  const Icon(Icons.bolt, color: Color(0xFF00FF88), size: 20),
-                  const SizedBox(width: 6),
+                  Icon(Icons.bolt, color: const Color(0xFF00FF88), size: isMobile ? 17 : 20),
+                  const SizedBox(width: 5),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'LEVEL',
-                        style: TextStyle(color: Colors.white60, fontSize: 9, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: Colors.white60, fontSize: 8.5, fontWeight: FontWeight.bold),
                       ),
                       Text(
                         'LV. $level',
-                        style: const TextStyle(color: Color(0xFF00FF88), fontSize: 15, fontWeight: FontWeight.w900),
+                        style: TextStyle(color: const Color(0xFF00FF88), fontSize: isMobile ? 14 : 15, fontWeight: FontWeight.w900),
                       ),
                     ],
                   ),
                 ],
               ),
-              Container(width: 1, height: 26, color: Colors.white24),
+              Container(width: 1, height: isMobile ? 20 : 26, color: Colors.white24),
               Row(
                 children: [
-                  const Icon(Icons.monetization_on, color: Color(0xFFFFD700), size: 20),
-                  const SizedBox(width: 6),
+                  Icon(Icons.monetization_on, color: const Color(0xFFFFD700), size: isMobile ? 17 : 20),
+                  const SizedBox(width: 5),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'COINS',
-                        style: TextStyle(color: Colors.white60, fontSize: 9, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: Colors.white60, fontSize: 8.5, fontWeight: FontWeight.bold),
                       ),
                       Text(
                         '$coins 🪙',
-                        style: const TextStyle(color: Color(0xFFFFD700), fontSize: 15, fontWeight: FontWeight.w900),
+                        style: TextStyle(color: const Color(0xFFFFD700), fontSize: isMobile ? 14 : 15, fontWeight: FontWeight.w900),
                       ),
                     ],
                   ),
@@ -1208,21 +1232,21 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildStatCard('HIGH SCORE', '$highScore', cyan),
-            _buildStatCard('BEST RALLY', '$bestRally', const Color(0xFFFF71CE)),
-            _buildStatCard('KILLS', '$kills', const Color(0xFFFF5252)),
-            _buildStatCard('WINS', '$wins', const Color(0xFF00FF88)),
+            _buildStatCard('HIGH SCORE', '$highScore', cyan, isMobile),
+            _buildStatCard('BEST RALLY', '$bestRally', const Color(0xFFFF71CE), isMobile),
+            _buildStatCard('KILLS', '$kills', const Color(0xFFFF5252), isMobile),
+            _buildStatCard('WINS', '$wins', const Color(0xFF00FF88), isMobile),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: isMobile ? 6 : 8),
         Center(
           child: TextButton.icon(
-            icon: Icon(Icons.lock_reset, size: 16, color: cyan.withValues(alpha: 0.9)),
+            icon: Icon(Icons.lock_reset, size: isMobile ? 14 : 16, color: cyan.withValues(alpha: 0.9)),
             label: Text(
               'CHANGE PASSWORD',
               style: TextStyle(
                 color: cyan.withValues(alpha: 0.9),
-                fontSize: 11,
+                fontSize: isMobile ? 10.5 : 11,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1,
               ),
@@ -1230,7 +1254,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
             onPressed: _showChangePasswordDialog,
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: isMobile ? 8 : 14),
 
         if (UserUtils.isOwner(rawName)) ...[
           SizedBox(
@@ -1240,24 +1264,24 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                 backgroundColor: const Color(0xFFE50914),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: EdgeInsets.symmetric(vertical: isMobile ? 9 : 12),
                 elevation: 4,
               ),
-              icon: const Icon(Icons.admin_panel_settings, size: 20),
-              label: const Text(
+              icon: Icon(Icons.admin_panel_settings, size: isMobile ? 17 : 20),
+              label: Text(
                 'OPEN OWNER ADMIN PANEL',
-                style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 13),
+                style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: isMobile ? 11.5 : 13),
               ),
               onPressed: () async {
                 await AdminPanelDialog.show(context, widget.theme);
+                final s = await _supabase.fetchMyStats();
                 if (mounted) {
-                  final s = await _supabase.fetchMyStats();
                   setState(() => _myStats = s);
                 }
               },
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: isMobile ? 8 : 10),
         ],
 
         // Bottom Actions: Sync & Log Out
@@ -1268,10 +1292,10 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: cyan),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: EdgeInsets.symmetric(vertical: isMobile ? 9 : 12),
                 ),
-                icon: Icon(Icons.sync, color: cyan, size: 18),
-                label: Text('SYNC STATS', style: TextStyle(color: cyan, fontWeight: FontWeight.bold, fontSize: 12)),
+                icon: Icon(Icons.sync, color: cyan, size: isMobile ? 15 : 18),
+                label: Text('SYNC STATS', style: TextStyle(color: cyan, fontWeight: FontWeight.bold, fontSize: isMobile ? 11 : 12)),
                 onPressed: () async {
                   setState(() => _isLoading = true);
                   await _supabase.syncLocalRecords(
@@ -1284,18 +1308,14 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                   );
                   final s = await _supabase.fetchMyStats();
                   if (s != null) {
-                    if (s.level > StorageService.instance.getLevel()) {
-                      await StorageService.instance.saveLevel(s.level);
-                    }
-                    if (s.coins > StorageService.instance.getCoins()) {
-                      await StorageService.instance.saveCoins(s.coins);
-                    }
-                    if (s.kills > StorageService.instance.getKills()) {
-                      await StorageService.instance.saveKills(s.kills);
-                    }
-                    if (s.wins > StorageService.instance.getWins()) {
-                      await StorageService.instance.saveWins(s.wins);
-                    }
+                    await StorageService.instance.syncFromRemoteStats(
+                      level: s.level,
+                      coins: s.coins,
+                      kills: s.kills,
+                      wins: s.wins,
+                      highScore: s.highScore,
+                      bestRally: s.bestRally,
+                    );
                   }
                   if (mounted) {
                     setState(() {
@@ -1307,7 +1327,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                 },
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: isMobile ? 8 : 12),
             Expanded(
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
@@ -1315,10 +1335,10 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                   foregroundColor: const Color(0xFFFF1744),
                   side: const BorderSide(color: Color(0xFFFF1744)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: EdgeInsets.symmetric(vertical: isMobile ? 9 : 12),
                 ),
-                icon: const Icon(Icons.logout, size: 18),
-                label: const Text('LOG OUT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                icon: Icon(Icons.logout, size: isMobile ? 15 : 18),
+                label: Text('LOG OUT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isMobile ? 11 : 12)),
                 onPressed: _isLoading ? null : _handleLogOut,
               ),
             ),
@@ -1601,10 +1621,10 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     );
   }
 
-  Widget _buildStatCard(String label, String value, Color color) {
+  Widget _buildStatCard(String label, String value, Color color, [bool isMobile = false]) {
     return Container(
-      width: 82,
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      width: isMobile ? 74 : 82,
+      padding: EdgeInsets.symmetric(vertical: isMobile ? 6 : 10),
       decoration: BoxDecoration(
         color: const Color(0xFF10132C),
         borderRadius: BorderRadius.circular(12),
@@ -1620,14 +1640,14 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
-              fontSize: 16,
+              fontSize: isMobile ? 14 : 16,
               shadows: [Shadow(color: color, blurRadius: 10)],
             ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+            style: TextStyle(color: color, fontSize: isMobile ? 7.5 : 8, fontWeight: FontWeight.bold, letterSpacing: 0.8),
           ),
         ],
       ),

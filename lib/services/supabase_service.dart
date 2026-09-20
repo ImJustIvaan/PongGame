@@ -920,7 +920,7 @@ class SupabaseService {
     int wins = 0,
     String? addedBy,
   }) async {
-    final clean = username.trim().toLowerCase();
+    final clean = username.trim().toLowerCase().replaceAll('@', '');
     if (clean.isEmpty) return 'Username cannot be empty';
     if (coins <= 0 && levels <= 0 && kills <= 0 && wins <= 0) {
       return 'Please specify at least one stat amount greater than 0';
@@ -932,7 +932,7 @@ class SupabaseService {
     }
 
     // 1. If modifying current active user, update local storage immediately
-    final cleanUsername = clean.replaceAll('@', '');
+    final cleanUsername = clean;
     final currentClean = currentUsername.trim().toLowerCase().replaceAll('@', '');
     final emailPrefix = currentUser?.email?.split('@').first.toLowerCase() ?? '';
     final savedUsername = StorageService.instance.getUsername()?.toLowerCase().replaceAll('@', '');
@@ -963,7 +963,16 @@ class SupabaseService {
     try {
       if (!_initialized) await initialize().timeout(const Duration(seconds: 4));
       if (_initialized && client != null) {
-        final existing = await client!
+        dynamic existing;
+        if (isMe && currentUser != null) {
+          existing = await client!
+              .from('game_stats')
+              .select()
+              .eq('user_id', currentUser!.id)
+              .maybeSingle()
+              .timeout(const Duration(seconds: 6));
+        }
+        existing ??= await client!
             .from('game_stats')
             .select()
             .ilike('username', clean)
@@ -994,17 +1003,32 @@ class SupabaseService {
             'high_score': newHighScore,
             'updated_at': DateTime.now().toUtc().toIso8601String(),
           };
+          if (isMe && currentUser != null) {
+            payload['user_id'] = currentUser!.id;
+          }
 
           try {
-            await client!.from('game_stats').update(payload).ilike('username', clean).timeout(const Duration(seconds: 6));
+            if (isMe && currentUser != null) {
+              await client!.from('game_stats').update(payload).eq('user_id', currentUser!.id).timeout(const Duration(seconds: 6));
+            } else {
+              await client!.from('game_stats').update(payload).ilike('username', clean).timeout(const Duration(seconds: 6));
+            }
           } catch (_) {
             payload.remove('kills');
             try {
-              await client!.from('game_stats').update(payload).ilike('username', clean).timeout(const Duration(seconds: 6));
+              if (isMe && currentUser != null) {
+                await client!.from('game_stats').update(payload).eq('user_id', currentUser!.id).timeout(const Duration(seconds: 6));
+              } else {
+                await client!.from('game_stats').update(payload).ilike('username', clean).timeout(const Duration(seconds: 6));
+              }
             } catch (_) {
               payload.remove('level');
               payload.remove('coins');
-              await client!.from('game_stats').update(payload).ilike('username', clean).timeout(const Duration(seconds: 6));
+              if (isMe && currentUser != null) {
+                await client!.from('game_stats').update(payload).eq('user_id', currentUser!.id).timeout(const Duration(seconds: 6));
+              } else {
+                await client!.from('game_stats').update(payload).ilike('username', clean).timeout(const Duration(seconds: 6));
+              }
             }
           }
         } else {
@@ -1019,6 +1043,9 @@ class SupabaseService {
             'best_rally': 0,
             'updated_at': DateTime.now().toUtc().toIso8601String(),
           };
+          if (isMe && currentUser != null) {
+            payload['user_id'] = currentUser!.id;
+          }
           try {
             await client!.from('game_stats').insert(payload).timeout(const Duration(seconds: 6));
           } catch (_) {
@@ -1035,6 +1062,10 @@ class SupabaseService {
       }
     } catch (e) {
       debugPrint('Notice adding player stats in Supabase: $e');
+    }
+
+    if (isMe) {
+      await fetchMyStats();
     }
 
     return null;

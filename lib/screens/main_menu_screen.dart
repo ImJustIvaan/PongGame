@@ -390,7 +390,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       'LV. ${StorageService.instance.getLevel()}  •  ${StorageService.instance.getCoins()} COINS 🪙'
                       '${highScore > 0 || bestRally > 0 ? "  •  BEST SCORE: $highScore  •  RALLY: $bestRally" : ""}',
                       style: TextStyle(
-                        color: Colors.white60,
+                        color: _theme.isLight ? Colors.black54 : Colors.white60,
                         fontSize: isMobile ? 11 : (12 * scale).roundToDouble(),
                         letterSpacing: isMobile ? 1.0 : 1.5 * scale,
                         fontWeight: FontWeight.w600,
@@ -405,8 +405,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
           // Unified Responsive Top Navigation & Stats Bar
           Positioned(
             top: 10,
-            left: isMobile ? 10 : 16,
-            right: isMobile ? 10 : 16,
+            left: isMobile ? 6 : 16,
+            right: isMobile ? 6 : 16,
             child: SafeArea(
               child: Row(
                 children: [
@@ -419,13 +419,17 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                         onTap: () => FullscreenService.instance.toggle(),
                         child: Container(
                           padding: EdgeInsets.symmetric(
-                            horizontal: isMobile ? 8 : (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                            vertical: isMobile ? 6 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                            horizontal: isMobile ? 6 : (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                            vertical: isMobile ? 5 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF090B1E).withValues(alpha: 0.85),
+                            color: _theme.isLight
+                                ? Colors.white.withValues(alpha: 0.92)
+                                : const Color(0xFF090B1E).withValues(alpha: 0.85),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white24),
+                            border: Border.all(
+                              color: _theme.isLight ? Colors.black26 : Colors.white24,
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -469,13 +473,17 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                           // Level & Coins Pill
                           Container(
                             padding: EdgeInsets.symmetric(
-                              horizontal: isMobile ? 8 : (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                              vertical: isMobile ? 6 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                              horizontal: isMobile ? 6 : (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                              vertical: isMobile ? 5 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF090B1E).withValues(alpha: 0.85),
+                              color: _theme.isLight
+                                  ? Colors.white.withValues(alpha: 0.92)
+                                  : const Color(0xFF090B1E).withValues(alpha: 0.85),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6)),
+                              border: Border.all(
+                                color: const Color(0xFFFFD700).withValues(alpha: _theme.isLight ? 0.9 : 0.6),
+                              ),
                               boxShadow: const [
                                 BoxShadow(color: Color(0x22FFD700), blurRadius: 8, spreadRadius: 1),
                               ],
@@ -483,25 +491,25 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.bolt, size: 14, color: Color(0xFF00FF88)),
+                                const Icon(Icons.bolt, size: 14, color: Color(0xFF00C853)),
                                 const SizedBox(width: 3),
                                 Text(
                                   isMobile ? '${StorageService.instance.getLevel()}' : 'LV. ${StorageService.instance.getLevel()}',
                                   style: TextStyle(
-                                    color: const Color(0xFF00FF88),
+                                    color: _theme.isLight ? const Color(0xFF007A33) : const Color(0xFF00FF88),
                                     fontSize: isMobile ? 11 : (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                SizedBox(width: isMobile ? 5 : 8),
-                                const Text('•', style: TextStyle(color: Colors.white30, fontSize: 10)),
-                                SizedBox(width: isMobile ? 5 : 8),
-                                const Icon(Icons.monetization_on, size: 14, color: Color(0xFFFFD700)),
+                                SizedBox(width: isMobile ? 4 : 8),
+                                Text('•', style: TextStyle(color: _theme.isLight ? Colors.black26 : Colors.white30, fontSize: 10)),
+                                SizedBox(width: isMobile ? 4 : 8),
+                                const Icon(Icons.monetization_on, size: 14, color: Color(0xFFFF9900)),
                                 const SizedBox(width: 3),
                                 Text(
                                   '${StorageService.instance.getCoins()}',
                                   style: TextStyle(
-                                    color: const Color(0xFFFFD700),
+                                    color: _theme.isLight ? const Color(0xFFB45309) : const Color(0xFFFFD700),
                                     fontSize: isMobile ? 11 : (11 * scale.clamp(1.0, 1.3)).roundToDouble(),
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -509,7 +517,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                               ],
                             ),
                           ),
-                          SizedBox(width: isMobile ? 6 : 8),
+                          SizedBox(width: isMobile ? 4 : 8),
 
                           // If Owner: Admin Button
                           if (isOwner) ...[
@@ -522,8 +530,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                               },
                               child: Container(
                                 padding: EdgeInsets.symmetric(
-                                  horizontal: isMobile ? 7 : (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                                  vertical: isMobile ? 6 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                  horizontal: isMobile ? 6 : (10 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                  vertical: isMobile ? 5 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
                                 ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFE50914).withValues(alpha: 0.25),
@@ -553,7 +561,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                                 ),
                               ),
                             ),
-                            SizedBox(width: isMobile ? 6 : 8),
+                            SizedBox(width: isMobile ? 4 : 8),
                           ],
 
                           // Profile / Login Button
@@ -566,14 +574,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                             },
                             child: Container(
                               padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 9 : (12 * scale.clamp(1.0, 1.3)).roundToDouble(),
-                                vertical: isMobile ? 6 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                horizontal: isMobile ? 7 : (12 * scale.clamp(1.0, 1.3)).roundToDouble(),
+                                vertical: isMobile ? 5 : (6 * scale.clamp(1.0, 1.3)).roundToDouble(),
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF090B1E).withValues(alpha: 0.85),
+                                color: _theme.isLight
+                                    ? Colors.white.withValues(alpha: 0.92)
+                                    : const Color(0xFF090B1E).withValues(alpha: 0.85),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: isLogged ? _theme.paddle1Color : Colors.white24,
+                                  color: isLogged
+                                      ? _theme.paddle1Color
+                                      : (_theme.isLight ? Colors.black26 : Colors.white24),
                                 ),
                                 boxShadow: isLogged
                                     ? [
@@ -590,13 +602,15 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                                   Icon(
                                     isLogged ? Icons.account_circle : Icons.account_circle_outlined,
                                     size: isMobile ? 15 : 16,
-                                    color: isLogged ? _theme.paddle1Color : Colors.white70,
+                                    color: isLogged
+                                        ? _theme.paddle1Color
+                                        : (_theme.isLight ? Colors.black87 : Colors.white70),
                                   ),
-                                  const SizedBox(width: 5),
+                                  const SizedBox(width: 4),
                                   ConstrainedBox(
                                     constraints: BoxConstraints(
                                       maxWidth: isMobile
-                                          ? (screenSize.width * 0.38).clamp(120.0, 160.0)
+                                          ? (screenSize.width * 0.25).clamp(65.0, 95.0)
                                           : 180,
                                     ),
                                     child: Text(
@@ -606,7 +620,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                                       overflow: TextOverflow.ellipsis,
                                       maxLines: 1,
                                       style: TextStyle(
-                                        color: isLogged ? _theme.paddle1Color : Colors.white70,
+                                        color: isLogged
+                                            ? _theme.paddle1Color
+                                            : (_theme.isLight ? Colors.black87 : Colors.white70),
                                         fontSize: isMobile ? 11 : 12,
                                         fontWeight: FontWeight.bold,
                                         letterSpacing: 0.8,
@@ -647,6 +663,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     final btnWidth = isMobile
         ? (screenSize.width - 32).clamp(260.0, 390.0)
         : (320 * scale).clamp(320.0, 480.0);
+    final isDarkBtn = color.computeLuminance() < 0.45;
+    final btnTextColor = isDarkBtn ? Colors.white : Colors.black;
+    final btnSubTextColor = isDarkBtn ? Colors.white70 : Colors.black.withValues(alpha: 0.7);
+    final btnIconColor = isDarkBtn ? Colors.white54 : Colors.black54;
+
     return Container(
       width: btnWidth,
       decoration: BoxDecoration(
@@ -664,7 +685,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
-          foregroundColor: Colors.black,
+          foregroundColor: btnTextColor,
           padding: EdgeInsets.symmetric(
             vertical: isMobile ? 11 : (16 * scale).roundToDouble(),
             horizontal: isMobile ? 14 : (20 * scale).roundToDouble(),
@@ -674,7 +695,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
         onPressed: onTap,
         child: Row(
           children: [
-            Icon(icon, size: isMobile ? 22 : (28 * scale).roundToDouble(), color: Colors.black),
+            Icon(icon, size: isMobile ? 22 : (28 * scale).roundToDouble(), color: btnTextColor),
             SizedBox(width: isMobile ? 12 : (16 * scale).roundToDouble()),
             Expanded(
               child: Column(
@@ -686,7 +707,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       fontSize: isMobile ? 13.5 : (16 * scale).roundToDouble(),
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1.0,
-                      color: Colors.black,
+                      color: btnTextColor,
                     ),
                   ),
                   Text(
@@ -694,13 +715,13 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                     style: TextStyle(
                       fontSize: isMobile ? 10 : (11 * scale).roundToDouble(),
                       fontWeight: FontWeight.w600,
-                      color: Colors.black.withValues(alpha: 0.7),
+                      color: btnSubTextColor,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios, size: isMobile ? 13 : (16 * scale).roundToDouble(), color: Colors.black54),
+            Icon(Icons.arrow_forward_ios, size: isMobile ? 13 : (16 * scale).roundToDouble(), color: btnIconColor),
           ],
         ),
       ),
@@ -718,9 +739,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
         vertical: isMobile ? 8 : (12 * scale).roundToDouble(),
       ),
       decoration: BoxDecoration(
-        color: Colors.black45,
+        color: _theme.isLight ? Colors.black.withValues(alpha: 0.05) : Colors.black45,
         borderRadius: BorderRadius.circular(isMobile ? 12 : 16 * scale),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: _theme.isLight ? Colors.black12 : Colors.white12),
       ),
       child: Column(
         children: [
@@ -730,14 +751,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
               Text(
                 'AI LEVEL:',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: _theme.isLight ? Colors.black87 : Colors.white70,
                   fontSize: isMobile ? 11 : (12 * scale).roundToDouble(),
                   fontWeight: FontWeight.bold,
                 ),
               ),
               DropdownButton<AiDifficulty>(
                 value: _difficulty,
-                dropdownColor: const Color(0xFF151520),
+                dropdownColor: _theme.isLight ? Colors.white : const Color(0xFF151520),
                 style: TextStyle(
                   color: _theme.paddle1Color,
                   fontWeight: FontWeight.bold,
@@ -760,21 +781,21 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
               ),
             ],
           ),
-          Divider(color: Colors.white10, height: isMobile ? 10 : (14 * scale).roundToDouble()),
+          Divider(color: _theme.isLight ? Colors.black12 : Colors.white10, height: isMobile ? 10 : (14 * scale).roundToDouble()),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'FIRST TO:',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: _theme.isLight ? Colors.black87 : Colors.white70,
                   fontSize: isMobile ? 11 : (12 * scale).roundToDouble(),
                   fontWeight: FontWeight.bold,
                 ),
               ),
               DropdownButton<int>(
                 value: _targetScore,
-                dropdownColor: const Color(0xFF151520),
+                dropdownColor: _theme.isLight ? Colors.white : const Color(0xFF151520),
                 style: TextStyle(
                   color: _theme.paddle1Color,
                   fontWeight: FontWeight.bold,
@@ -811,18 +832,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
   }) {
     return OutlinedButton.icon(
       style: OutlinedButton.styleFrom(
-        side: const BorderSide(color: Colors.white24),
+        side: BorderSide(color: _theme.isLight ? Colors.black26 : Colors.white24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isMobile ? 10 : 12 * scale)),
         padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 10 : (14 * scale).roundToDouble(),
           vertical: isMobile ? 6 : (10 * scale).roundToDouble(),
         ),
       ),
-      icon: Icon(icon, size: isMobile ? 14 : (18 * scale).roundToDouble(), color: Colors.white),
+      icon: Icon(icon, size: isMobile ? 14 : (18 * scale).roundToDouble(), color: _theme.isLight ? Colors.black87 : Colors.white),
       label: Text(
         label,
         style: TextStyle(
-          color: Colors.white,
+          color: _theme.isLight ? Colors.black87 : Colors.white,
           fontSize: isMobile ? 10 : (12 * scale).roundToDouble(),
           fontWeight: FontWeight.bold,
         ),
@@ -834,7 +855,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
   void _showThemePicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF141524),
+      backgroundColor: _theme.isLight ? Colors.white : const Color(0xFF141524),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -845,9 +866,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'SELECT THEME',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 2),
+                style: TextStyle(
+                  color: _theme.isLight ? Colors.black87 : Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
               ),
               const SizedBox(height: 16),
               ...PongThemeType.values.map((type) {
@@ -861,7 +887,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                   title: Text(
                     t.name,
                     style: TextStyle(
-                      color: isSelected ? t.paddle1Color : Colors.white,
+                      color: isSelected ? t.paddle1Color : (_theme.isLight ? Colors.black87 : Colors.white),
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),

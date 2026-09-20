@@ -5,6 +5,7 @@ enum PongThemeType {
   retro1972,
   synthwave,
   minimal,
+  lightMode,
 }
 
 class PongTheme {
@@ -19,6 +20,8 @@ class PongTheme {
   final Color particleColor;
   final bool hasGlow;
   final bool hasScanlines;
+
+  bool get isLight => type == PongThemeType.lightMode;
 
   const PongTheme({
     required this.type,
@@ -90,6 +93,20 @@ class PongTheme {
     hasScanlines: false,
   );
 
+  static const PongTheme lightMode = PongTheme(
+    type: PongThemeType.lightMode,
+    name: 'Light Mode',
+    backgroundColor: Color(0xFFF1F5F9),
+    tableLineColor: Color(0x330066FF),
+    paddle1Color: Color(0xFF0066FF),
+    paddle2Color: Color(0xFFFF2D55),
+    ballColor: Color(0xFF0F172A),
+    scoreColor: Color(0x280066FF),
+    particleColor: Color(0xFF0066FF),
+    hasGlow: false,
+    hasScanlines: false,
+  );
+
   static PongTheme fromType(PongThemeType type) {
     switch (type) {
       case PongThemeType.cyberNeon:
@@ -100,6 +117,8 @@ class PongTheme {
         return synthwave;
       case PongThemeType.minimal:
         return minimal;
+      case PongThemeType.lightMode:
+        return lightMode;
     }
   }
 }
