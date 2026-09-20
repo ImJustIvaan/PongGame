@@ -1,12 +1,12 @@
 {
-    "name": "pong_game",
-    "short_name": "pong_game",
+    "name": "The Pong Game!",
+    "short_name": "The Pong Game!",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#080B18",
+    "theme_color": "#00E5FF",
+    "description": "The Pong Game! - Are you game?",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {
