@@ -97,11 +97,31 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
       }
     });
 
+    _syncPlayerStats();
+
     _authSub = SupabaseService.instance.authStateChanges?.listen((data) {
       if (data.event == AuthChangeEvent.passwordRecovery) {
         _promptSetNewPassword();
+      } else if (data.event == AuthChangeEvent.signedIn ||
+          data.event == AuthChangeEvent.tokenRefreshed ||
+          data.event == AuthChangeEvent.userUpdated) {
+        _syncPlayerStats();
       }
     });
+  }
+
+  Future<void> _syncPlayerStats() async {
+    final isLogged = StorageService.instance.isLoggedIn() || SupabaseService.instance.isLoggedIn;
+    if (isLogged) {
+      try {
+        final stats = await SupabaseService.instance.fetchMyStats();
+        if (stats != null && mounted) {
+          setState(() {});
+        }
+      } catch (e) {
+        debugPrint('Notice syncing player stats in main menu: $e');
+      }
+    }
   }
 
   void _handleJoinLinkOnStartup(String gameId) async {
@@ -161,20 +181,22 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
         targetScore: _targetScore,
         prefilledGameId: prefilledGameId,
       );
-      setState(() {});
+      await _syncPlayerStats();
+      if (mounted) setState(() {});
     }
   }
 
   void _promptSetNewPassword() async {
     if (!mounted) return;
     await SetNewPasswordDialog.show(context, _theme);
+    await _syncPlayerStats();
     if (mounted) setState(() {});
   }
 
   PongTheme get _theme => PongTheme.fromType(_selectedThemeType);
 
-  void _startGame(GameMode mode) {
-    Navigator.of(context).push(
+  void _startGame(GameMode mode) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => GameScreen(
           mode: mode,
@@ -184,6 +206,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
         ),
       ),
     );
+    await _syncPlayerStats();
+    if (mounted) setState(() {});
   }
 
 
@@ -326,6 +350,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                           isMobile: isMobile,
                           onPressed: () async {
                             await SkinShopDialog.show(context, _theme);
+                            await _syncPlayerStats();
                             setState(() {});
                           },
                         ),
@@ -338,6 +363,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                             final isLogged = StorageService.instance.isLoggedIn() || SupabaseService.instance.isLoggedIn;
                             final targetTab = isLogged ? 1 : 0;
                             await AccountDialog.show(context, _theme, initialTab: targetTab);
+                            await _syncPlayerStats();
                             setState(() {});
                           },
                         ),
@@ -491,6 +517,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                               borderRadius: BorderRadius.circular(20),
                               onTap: () async {
                                 await AdminPanelDialog.show(context, _theme);
+                                await _syncPlayerStats();
                                 setState(() {});
                               },
                               child: Container(
@@ -534,6 +561,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                             borderRadius: BorderRadius.circular(20),
                             onTap: () async {
                               await AccountDialog.show(context, _theme);
+                              await _syncPlayerStats();
                               setState(() {});
                             },
                             child: Container(

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'storage_service.dart';
+import '../utils/user_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
@@ -360,6 +361,14 @@ class SupabaseService {
       final mergedKills = [currentStats?.kills ?? 0, localKills ?? 0].reduce((a, b) => a > b ? a : b);
       final mergedWins = [currentStats?.wins ?? 0, localWins ?? 0].reduce((a, b) => a > b ? a : b);
 
+      // Save merged values back to local storage immediately
+      await StorageService.instance.saveLevel(mergedLevel);
+      await StorageService.instance.saveCoins(mergedCoins);
+      await StorageService.instance.saveKills(mergedKills);
+      await StorageService.instance.saveWins(mergedWins);
+      await StorageService.instance.saveHighScore(mergedHighScore);
+      await StorageService.instance.saveBestRally(mergedBestRally);
+
       final payload = <String, dynamic>{
         'user_id': user.id,
         'username': currentUsername,
@@ -404,7 +413,16 @@ class SupabaseService {
           .timeout(const Duration(seconds: 6));
 
       if (data != null) {
-        return PlayerStats.fromMap(data);
+        final stats = PlayerStats.fromMap(data);
+        await StorageService.instance.syncFromRemoteStats(
+          level: stats.level,
+          coins: stats.coins,
+          kills: stats.kills,
+          wins: stats.wins,
+          highScore: stats.highScore,
+          bestRally: stats.bestRally,
+        );
+        return stats;
       }
     } catch (e) {
       debugPrint('Error fetching stats: $e');
@@ -914,7 +932,16 @@ class SupabaseService {
     }
 
     // 1. If modifying current active user, update local storage immediately
-    if (clean == currentUsername.toLowerCase()) {
+    final cleanUsername = clean.replaceAll('@', '');
+    final currentClean = currentUsername.trim().toLowerCase().replaceAll('@', '');
+    final emailPrefix = currentUser?.email?.split('@').first.toLowerCase() ?? '';
+    final savedUsername = StorageService.instance.getUsername()?.toLowerCase().replaceAll('@', '');
+    final isMe = cleanUsername == currentClean ||
+        (cleanUsername == 'imjustivaan' && UserUtils.isOwner(currentUsername)) ||
+        (emailPrefix.isNotEmpty && cleanUsername == emailPrefix) ||
+        (savedUsername != null && cleanUsername == savedUsername);
+
+    if (isMe) {
       if (coins > 0) await StorageService.instance.addCoins(coins);
       if (levels > 0) await StorageService.instance.incrementLevel(levels);
       if (kills > 0) await StorageService.instance.addKills(kills);

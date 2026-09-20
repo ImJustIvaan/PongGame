@@ -761,22 +761,20 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
 
                     // Tab View
                     Flexible(
-                      child: SingleChildScrollView(
-                        child: SizedBox(
-                          height: 350,
-                          child: TabBarView(
-                            controller: _tabController,
-                            children: loggedIn
-                                ? [
-                                    _buildProfileView(glowColor),
-                                    _buildLeaderboardView(glowColor),
-                                  ]
-                                : [
-                                    _buildLeaderboardView(glowColor),
-                                    _isResetPasswordMode ? _buildResetPasswordView(glowColor) : _buildSignInView(glowColor),
-                                    _buildSignUpView(glowColor, accentPink),
-                                  ],
-                          ),
+                      child: SizedBox(
+                        height: (MediaQuery.of(context).size.height * 0.70).clamp(isMobile ? 440.0 : 470.0, 580.0),
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: loggedIn
+                              ? [
+                                  _buildProfileView(glowColor),
+                                  _buildLeaderboardView(glowColor),
+                                ]
+                              : [
+                                  _buildLeaderboardView(glowColor),
+                                  _isResetPasswordMode ? _buildResetPasswordView(glowColor) : _buildSignInView(glowColor),
+                                  _buildSignUpView(glowColor, accentPink),
+                                ],
                         ),
                       ),
                     ),
@@ -849,201 +847,207 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
   }
 
   Widget _buildSignUpView(Color cyan, Color pink) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildNeonField(
-          label: 'USERNAME',
-          controller: _usernameController,
-          hint: 'e.g. imjustivaan',
-          icon: Icons.person_outline,
-          glowColor: pink,
-          trailing: InkWell(
-            borderRadius: BorderRadius.circular(8),
-            onTap: _rollRandomName,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              margin: const EdgeInsets.only(right: 6),
-              decoration: BoxDecoration(
-                color: pink.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: pink.withValues(alpha: 0.6)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.casino_outlined, size: 14, color: pink),
-                  const SizedBox(width: 4),
-                  Text(
-                    'RANDOM',
-                    style: TextStyle(color: pink, fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
-                ],
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildNeonField(
+            label: 'USERNAME',
+            controller: _usernameController,
+            hint: 'e.g. imjustivaan',
+            icon: Icons.person_outline,
+            glowColor: pink,
+            trailing: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: _rollRandomName,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(
+                  color: pink.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: pink.withValues(alpha: 0.6)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.casino_outlined, size: 14, color: pink),
+                    const SizedBox(width: 4),
+                    Text(
+                      'RANDOM',
+                      style: TextStyle(color: pink, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        _buildNeonField(
-          label: 'EMAIL ADDRESS',
-          controller: _emailController,
-          hint: 'user@example.com',
-          icon: Icons.alternate_email,
-          glowColor: cyan,
-        ),
-        const SizedBox(height: 12),
-        _buildNeonField(
-          label: 'PASSWORD (6+ CHARACTERS)',
-          controller: _passwordController,
-          hint: '••••••••',
-          icon: Icons.lock_outline,
-          obscureText: true,
-          glowColor: cyan,
-        ),
-        const Spacer(),
-        _buildGlowButton(
-          title: 'CREATE ACCOUNT',
-          gradientColors: [pink, const Color(0xFF9C27B0)],
-          glowColor: pink,
-          isLoading: _isLoading,
-          onTap: _handleSignUp,
-        ),
-        const SizedBox(height: 8),
-        Center(
-          child: TextButton(
-            onPressed: () => _tabController.animateTo(1),
-            child: const Text(
-              'Already have an account? SIGN IN',
-              style: TextStyle(color: Colors.white60, fontSize: 12),
+          const SizedBox(height: 12),
+          _buildNeonField(
+            label: 'EMAIL ADDRESS',
+            controller: _emailController,
+            hint: 'user@example.com',
+            icon: Icons.alternate_email,
+            glowColor: cyan,
+          ),
+          const SizedBox(height: 12),
+          _buildNeonField(
+            label: 'PASSWORD (6+ CHARACTERS)',
+            controller: _passwordController,
+            hint: '••••••••',
+            icon: Icons.lock_outline,
+            obscureText: true,
+            glowColor: cyan,
+          ),
+          const SizedBox(height: 16),
+          _buildGlowButton(
+            title: 'CREATE ACCOUNT',
+            gradientColors: [pink, const Color(0xFF9C27B0)],
+            glowColor: pink,
+            isLoading: _isLoading,
+            onTap: _handleSignUp,
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton(
+              onPressed: () => _tabController.animateTo(1),
+              child: const Text(
+                'Already have an account? SIGN IN',
+                style: TextStyle(color: Colors.white60, fontSize: 12),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildResetPasswordView(Color cyan) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            IconButton(
-              icon: Icon(Icons.arrow_back, color: cyan, size: 18),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.arrow_back, color: cyan, size: 18),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => setState(() => _isResetPasswordMode = false),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'RESET PASSWORD',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Enter your email address to receive a secure password reset link:',
+            style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
+          ),
+          const SizedBox(height: 14),
+          _buildNeonField(
+            label: 'EMAIL ADDRESS',
+            controller: _resetEmailController,
+            hint: 'user@example.com',
+            icon: Icons.alternate_email,
+            glowColor: cyan,
+          ),
+          const SizedBox(height: 16),
+          _buildGlowButton(
+            title: 'SEND RESET LINK',
+            gradientColors: [cyan, const Color(0xFF0072FF)],
+            glowColor: cyan,
+            isLoading: _isLoading,
+            onTap: _handleResetPassword,
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton(
               onPressed: () => setState(() => _isResetPasswordMode = false),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'RESET PASSWORD',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
+              child: const Text(
+                'Remember your password? SIGN IN',
+                style: TextStyle(color: Colors.white60, fontSize: 12),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        const Text(
-          'Enter your email address to receive a secure password reset link:',
-          style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
-        ),
-        const SizedBox(height: 14),
-        _buildNeonField(
-          label: 'EMAIL ADDRESS',
-          controller: _resetEmailController,
-          hint: 'user@example.com',
-          icon: Icons.alternate_email,
-          glowColor: cyan,
-        ),
-        const Spacer(),
-        _buildGlowButton(
-          title: 'SEND RESET LINK',
-          gradientColors: [cyan, const Color(0xFF0072FF)],
-          glowColor: cyan,
-          isLoading: _isLoading,
-          onTap: _handleResetPassword,
-        ),
-        const SizedBox(height: 8),
-        Center(
-          child: TextButton(
-            onPressed: () => setState(() => _isResetPasswordMode = false),
-            child: const Text(
-              'Remember your password? SIGN IN',
-              style: TextStyle(color: Colors.white60, fontSize: 12),
-            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildSignInView(Color cyan) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 10),
-        _buildNeonField(
-          label: 'EMAIL ADDRESS',
-          controller: _emailController,
-          hint: 'user@example.com',
-          icon: Icons.alternate_email,
-          glowColor: cyan,
-        ),
-        const SizedBox(height: 16),
-        _buildNeonField(
-          label: 'PASSWORD',
-          controller: _passwordController,
-          hint: '••••••••',
-          icon: Icons.lock_outline,
-          obscureText: true,
-          glowColor: cyan,
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: () {
-              setState(() {
-                _isResetPasswordMode = true;
-                _errorMessage = null;
-                _successMessage = null;
-                if (_emailController.text.trim().isNotEmpty) {
-                  _resetEmailController.text = _emailController.text.trim();
-                }
-              });
-            },
-            child: Text(
-              'Forgot Password?',
-              style: TextStyle(
-                color: cyan.withValues(alpha: 0.8),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 10),
+          _buildNeonField(
+            label: 'EMAIL ADDRESS',
+            controller: _emailController,
+            hint: 'user@example.com',
+            icon: Icons.alternate_email,
+            glowColor: cyan,
+          ),
+          const SizedBox(height: 16),
+          _buildNeonField(
+            label: 'PASSWORD',
+            controller: _passwordController,
+            hint: '••••••••',
+            icon: Icons.lock_outline,
+            obscureText: true,
+            glowColor: cyan,
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () {
+                setState(() {
+                  _isResetPasswordMode = true;
+                  _errorMessage = null;
+                  _successMessage = null;
+                  if (_emailController.text.trim().isNotEmpty) {
+                    _resetEmailController.text = _emailController.text.trim();
+                  }
+                });
+              },
+              child: Text(
+                'Forgot Password?',
+                style: TextStyle(
+                  color: cyan.withValues(alpha: 0.8),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
-        ),
-        const Spacer(),
-        _buildGlowButton(
-          title: 'SIGN IN',
-          gradientColors: [cyan, const Color(0xFF0072FF)],
-          glowColor: cyan,
-          isLoading: _isLoading,
-          onTap: _handleSignIn,
-        ),
-        const SizedBox(height: 8),
-        Center(
-          child: TextButton(
-            onPressed: () => _tabController.animateTo(2),
-            child: const Text(
-              'Need an account? SIGN UP',
-              style: TextStyle(color: Colors.white60, fontSize: 12),
+          const SizedBox(height: 16),
+          _buildGlowButton(
+            title: 'SIGN IN',
+            gradientColors: [cyan, const Color(0xFF0072FF)],
+            glowColor: cyan,
+            isLoading: _isLoading,
+            onTap: _handleSignIn,
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton(
+              onPressed: () => _tabController.animateTo(2),
+              child: const Text(
+                'Need an account? SIGN UP',
+                style: TextStyle(color: Colors.white60, fontSize: 12),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1057,8 +1061,10 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     final level = _myStats?.level ?? StorageService.instance.getLevel();
     final coins = _myStats?.coins ?? StorageService.instance.getCoins();
 
-    return Column(
-      children: [
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        children: [
         const SizedBox(height: 4),
         Container(
           width: 68,
@@ -1224,7 +1230,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
             onPressed: _showChangePasswordDialog,
           ),
         ),
-        const Spacer(),
+        const SizedBox(height: 14),
 
         if (UserUtils.isOwner(rawName)) ...[
           SizedBox(
@@ -1319,6 +1325,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           ],
         ),
       ],
+      ),
     );
   }
 

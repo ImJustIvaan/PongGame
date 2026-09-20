@@ -158,6 +158,34 @@ class StorageService {
     return next;
   }
 
+  Future<void> syncFromRemoteStats({
+    required int level,
+    required int coins,
+    required int kills,
+    required int wins,
+    required int highScore,
+    required int bestRally,
+  }) async {
+    if (level > getLevel()) {
+      await saveLevel(level);
+    }
+    if (coins > getCoins() || (getCoins() == 0 && coins > 0)) {
+      await saveCoins(coins);
+    }
+    if (kills > getKills()) {
+      await saveKills(kills);
+    }
+    if (wins > getWins()) {
+      await saveWins(wins);
+    }
+    if (highScore > getHighScore()) {
+      await saveHighScore(highScore);
+    }
+    if (bestRally > getBestRally()) {
+      await saveBestRally(bestRally);
+    }
+  }
+
   // --- Paddle Skins & Wardrobe ---
   String getEquippedSkin() => _prefs?.getString('equipped_skin') ?? 'classic_cyan';
   Future<void> saveEquippedSkin(String skinId) async {
