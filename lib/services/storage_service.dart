@@ -3,6 +3,11 @@ import '../game/game_theme.dart';
 import '../game/pong_engine.dart';
 
 class StorageService {
+  String? getUsername() => _prefs?.getString('player_username');
+  Future<void> saveUsername(String name) async {
+    await _prefs?.setString('player_username', name.trim());
+  }
+
   static final StorageService instance = StorageService._();
   StorageService._();
 

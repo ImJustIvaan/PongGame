@@ -1,3 +1,4 @@
+import '../widgets/username_prompt_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../game/game_theme.dart';
@@ -35,6 +36,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     _soundEnabled = StorageService.instance.getSoundEnabled();
     SoundService.instance.isMuted = !_soundEnabled;
 
+    // Check if player hasn't set a username yet
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkFirstTimeUsername();
+    });
+
     // Attract mode background demo (AI vs AI playing)
     _attractEngine = PongEngine(mode: GameMode.attractMode);
     _attractTicker = createTicker((elapsed) {
@@ -68,6 +74,21 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
         ),
       ),
     );
+  }
+
+  void _checkFirstTimeUsername() async {
+    final username = StorageService.instance.getUsername();
+    if (username == null || username.trim().isEmpty) {
+      if (!SupabaseService.instance.isLoggedIn && mounted) {
+        await UsernamePromptDialog.show(context, _theme);
+        if (mounted) setState(() {});
+      }
+    }
+  }
+
+  void _editUsername() async {
+    await UsernamePromptDialog.show(context, _theme);
+    if (mounted) setState(() {});
   }
 
   @override
@@ -223,6 +244,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                   await AccountDialog.show(context, _theme);
                   setState(() {});
                 },
+                onLongPress: _editUsername,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -248,9 +270,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        SupabaseService.instance.isLoggedIn
-                            ? SupabaseService.instance.currentUsername.toUpperCase()
-                            : 'ACCOUNT',
+                        SupabaseService.instance.currentUsername.toUpperCase(),
                         style: TextStyle(
                           color: SupabaseService.instance.isLoggedIn
                               ? _theme.paddle1Color

@@ -1,3 +1,4 @@
+import 'storage_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
@@ -44,7 +45,13 @@ class SupabaseService {
   bool get isLoggedIn => currentUser != null;
 
   String get currentUsername {
-    if (!isLoggedIn) return 'Guest';
+    if (!isLoggedIn) {
+      final local = StorageService.instance.getUsername();
+      if (local != null && local.trim().isNotEmpty) {
+        return local.trim();
+      }
+      return 'Guest';
+    }
     final metadata = currentUser?.userMetadata;
     return metadata?['username'] as String? ??
         currentUser?.email?.split('@').first ??

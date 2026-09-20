@@ -27,7 +27,7 @@ class _AccountDialogState extends State<AccountDialog> with SingleTickerProvider
   // Form Controllers
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _usernameController = TextEditingController();
+  final _usernameController = TextEditingController(text: StorageService.instance.getUsername() ?? '');
 
   bool _isLoading = false;
   String? _errorMessage;
