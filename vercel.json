@@ -1,7 +1,6 @@
 {
-  "buildCommand": "if [ -n \"$SUPABASE_URL\" ] && [ -n \"$SUPABASE_ANON_KEY\" ]; then echo \"SUPABASE_URL=$SUPABASE_URL\" > .env && echo \"SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY\" >> .env; elif [ ! -f .env ]; then cp .env.example .env; fi && flutter/bin/flutter build web --release --dart-define=SUPABASE_URL=\"$SUPABASE_URL\" --dart-define=SUPABASE_ANON_KEY=\"$SUPABASE_ANON_KEY\"",
+  "buildCommand": "bash build.sh",
   "outputDirectory": "build/web",
-  "installCommand": "if [ -d \"flutter\" ]; then cd flutter && git pull && cd .. ; else git clone https://github.com/flutter/flutter.git --depth 1 -b stable flutter; fi && flutter/bin/flutter doctor && flutter/bin/flutter config --enable-web",
   "rewrites": [
     {
       "source": "/(.*)",
