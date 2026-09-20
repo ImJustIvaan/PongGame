@@ -32,6 +32,10 @@ class StorageService {
     await _prefs?.setBool('is_logged_in', value);
   }
 
+  Future<void> updateLocalPassword(String newPassword) async {
+    await _prefs?.setString('auth_password', newPassword);
+  }
+
   Future<void> logout() async {
     await _prefs?.setBool('is_logged_in', false);
   }

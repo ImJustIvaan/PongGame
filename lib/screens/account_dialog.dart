@@ -29,6 +29,9 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _usernameController = TextEditingController();
+  final _resetEmailController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  bool _isResetPasswordMode = false;
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -107,7 +110,158 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     _emailController.dispose();
     _passwordController.dispose();
     _usernameController.dispose();
+    _resetEmailController.dispose();
+    _newPasswordController.dispose();
     super.dispose();
+  }
+
+  void _handleResetPassword() async {
+    final email = _resetEmailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _errorMessage = 'Please enter a valid email address');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    if (!_supabase.isConfigured) {
+      final savedEmail = StorageService.instance.getSavedEmail();
+      if (savedEmail != null && savedEmail.toLowerCase() == email.toLowerCase()) {
+        setState(() {
+          _isLoading = false;
+          _isResetPasswordMode = false;
+          _successMessage = 'Local account found! You can sign up with a new password to overwrite.';
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'No account found with that email address.';
+        });
+      }
+      return;
+    }
+
+    final error = await _supabase.resetPassword(email);
+    if (error != null) {
+      setState(() {
+        _errorMessage = error;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+        _isResetPasswordMode = false;
+        _successMessage = 'Password reset link sent to $email! Check your inbox.';
+      });
+    }
+  }
+
+  void _showChangePasswordDialog() {
+    _newPasswordController.clear();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final cyan = widget.theme.paddle1Color;
+        bool isSubmitting = false;
+        String? dialogError;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF090B1E),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: cyan.withValues(alpha: 0.6)),
+              ),
+              title: const Text(
+                'CHANGE PASSWORD',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Enter a new password (minimum 6 characters):',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _newPasswordController,
+                    obscureText: true,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    cursorColor: cyan,
+                    decoration: InputDecoration(
+                      hintText: '••••••••',
+                      hintStyle: const TextStyle(color: Colors.white30),
+                      filled: true,
+                      fillColor: const Color(0xFF10132C),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: cyan.withValues(alpha: 0.4)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: cyan),
+                      ),
+                    ),
+                  ),
+                  if (dialogError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(dialogError!, style: const TextStyle(color: Color(0xFFFF1744), fontSize: 12)),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: cyan,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final newPass = _newPasswordController.text.trim();
+                          if (newPass.length < 6) {
+                            setDialogState(() => dialogError = 'Password must be at least 6 characters');
+                            return;
+                          }
+                          setDialogState(() => isSubmitting = true);
+
+                          if (_supabase.isConfigured) {
+                            final err = await _supabase.updatePassword(newPass);
+                            if (err != null) {
+                              setDialogState(() {
+                                isSubmitting = false;
+                                dialogError = err;
+                              });
+                              return;
+                            }
+                          }
+                          await StorageService.instance.updateLocalPassword(newPass);
+                          if (context.mounted) {
+                            Navigator.of(ctx).pop();
+                          }
+                          if (mounted) {
+                            setState(() => _successMessage = 'Password updated successfully!');
+                          }
+                        },
+                  child: const Text('SAVE PASSWORD', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _rollRandomName() {
@@ -472,7 +626,7 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
                                   ]
                                 : [
                                     _buildSignUpView(glowColor, accentPink),
-                                    _buildSignInView(glowColor),
+                                    _isResetPasswordMode ? _buildResetPasswordView(glowColor) : _buildSignInView(glowColor),
                                     _buildLeaderboardView(glowColor),
                                   ],
                           ),
@@ -620,6 +774,65 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
     );
   }
 
+  Widget _buildResetPasswordView(Color cyan) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              icon: Icon(Icons.arrow_back, color: cyan, size: 18),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onPressed: () => setState(() => _isResetPasswordMode = false),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'RESET PASSWORD',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Enter your email address to receive a secure password reset link:',
+          style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
+        ),
+        const SizedBox(height: 14),
+        _buildNeonField(
+          label: 'EMAIL ADDRESS',
+          controller: _resetEmailController,
+          hint: 'user@example.com',
+          icon: Icons.alternate_email,
+          glowColor: cyan,
+        ),
+        const Spacer(),
+        _buildGlowButton(
+          title: 'SEND RESET LINK',
+          gradientColors: [cyan, const Color(0xFF0072FF)],
+          glowColor: cyan,
+          isLoading: _isLoading,
+          onTap: _handleResetPassword,
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: TextButton(
+            onPressed: () => setState(() => _isResetPasswordMode = false),
+            child: const Text(
+              'Remember your password? SIGN IN',
+              style: TextStyle(color: Colors.white60, fontSize: 12),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSignInView(Color cyan) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -640,6 +853,29 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
           icon: Icons.lock_outline,
           obscureText: true,
           glowColor: cyan,
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () {
+              setState(() {
+                _isResetPasswordMode = true;
+                _errorMessage = null;
+                _successMessage = null;
+                if (_emailController.text.trim().isNotEmpty) {
+                  _resetEmailController.text = _emailController.text.trim();
+                }
+              });
+            },
+            child: Text(
+              'Forgot Password?',
+              style: TextStyle(
+                color: cyan.withValues(alpha: 0.8),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ),
         const Spacer(),
         _buildGlowButton(
@@ -763,6 +999,22 @@ class _AccountDialogState extends State<AccountDialog> with TickerProviderStateM
             _buildStatCard('GAMES', '$games', Colors.amberAccent),
             _buildStatCard('WINS', '$wins', const Color(0xFF00FF88)),
           ],
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: TextButton.icon(
+            icon: Icon(Icons.lock_reset, size: 16, color: cyan.withValues(alpha: 0.9)),
+            label: Text(
+              'CHANGE PASSWORD',
+              style: TextStyle(
+                color: cyan.withValues(alpha: 0.9),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
+            ),
+            onPressed: _showChangePasswordDialog,
+          ),
         ),
         const Spacer(),
 

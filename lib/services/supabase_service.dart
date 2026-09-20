@@ -133,6 +133,38 @@ class SupabaseService {
     }
   }
 
+  // Auth: Reset Password
+  Future<String?> resetPassword(String email) async {
+    if (!isConfigured) return 'Supabase credentials are not configured.';
+    if (!_initialized) await initialize();
+    if (!_initialized) return 'Could not connect to authentication service.';
+
+    try {
+      await client!.auth.resetPasswordForEmail(email.trim());
+      return null;
+    } on AuthException catch (e) {
+      return e.message;
+    } catch (e) {
+      return 'An unexpected error occurred: $e';
+    }
+  }
+
+  // Auth: Update Password
+  Future<String?> updatePassword(String newPassword) async {
+    if (!isConfigured) return 'Supabase credentials are not configured.';
+    if (!_initialized) await initialize();
+    if (!_initialized) return 'Could not connect to authentication service.';
+
+    try {
+      await client!.auth.updateUser(UserAttributes(password: newPassword.trim()));
+      return null;
+    } on AuthException catch (e) {
+      return e.message;
+    } catch (e) {
+      return 'An unexpected error occurred: $e';
+    }
+  }
+
   // Auth: Sign Out
   Future<void> signOut() async {
     try {
