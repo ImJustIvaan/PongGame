@@ -19,6 +19,7 @@ import 'account_dialog.dart';
 import 'admin_panel_dialog.dart';
 import 'game_screen.dart';
 import 'skin_shop_dialog.dart';
+import '../services/gamepad_service.dart';
 
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
@@ -59,8 +60,84 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
       final dt = ((elapsed - _lastTick).inMicroseconds / 1000000.0).clamp(0.0, 0.04);
       _lastTick = elapsed;
       _attractEngine.update(dt);
+
+      GamepadService.instance.poll();
+      _handleMenuGamepadInput();
+      GamepadService.instance.afterFrame();
+
       if (mounted) setState(() {});
     })..start();
+  }
+
+  int _focusedButtonIndex = 0;
+  DateTime _lastNavTime = DateTime.now();
+
+  void _handleMenuGamepadInput() {
+    if (!GamepadService.instance.hasAnyController) return;
+
+    final now = DateTime.now();
+    final canNav = now.difference(_lastNavTime).inMilliseconds > 220;
+
+    final moveY = GamepadService.instance.getMovementY();
+    final isUp = GamepadService.instance.isActionJustPressed(GamepadAction.dpadUp) ||
+        (canNav && moveY < -0.5);
+    final isDown = GamepadService.instance.isActionJustPressed(GamepadAction.dpadDown) ||
+        (canNav && moveY > 0.5);
+
+    if (isUp) {
+      _lastNavTime = now;
+      setState(() {
+        _focusedButtonIndex = (_focusedButtonIndex - 1).clamp(0, 3);
+      });
+      SoundService.instance.playPaddleHit();
+    } else if (isDown) {
+      _lastNavTime = now;
+      setState(() {
+        _focusedButtonIndex = (_focusedButtonIndex + 1).clamp(0, 3);
+      });
+      SoundService.instance.playPaddleHit();
+    }
+
+    // Action A or Start: Launch selected mode
+    if (GamepadService.instance.isActionJustPressed(GamepadAction.actionA) ||
+        GamepadService.instance.isActionJustPressed(GamepadAction.start)) {
+      switch (_focusedButtonIndex) {
+        case 0:
+          _startGame(GameMode.singlePlayer);
+          break;
+        case 1:
+          _openOnlineMultiplayer();
+          break;
+        case 2:
+          _startGame(GameMode.twoPlayer);
+          break;
+        case 3:
+          _startGame(GameMode.practice);
+          break;
+      }
+    }
+
+    // Action X: Open Skins Shop
+    if (GamepadService.instance.isActionJustPressed(GamepadAction.actionX)) {
+      SkinShopDialog.show(context, _theme).then((_) {
+        _syncPlayerStats();
+        if (mounted) setState(() {});
+      });
+    }
+
+    // Action Y: Open Leaderboard
+    if (GamepadService.instance.isActionJustPressed(GamepadAction.actionY)) {
+      final isLogged = StorageService.instance.isLoggedIn() || SupabaseService.instance.isLoggedIn;
+      AccountDialog.show(context, _theme, initialTab: isLogged ? 1 : 0).then((_) {
+        _syncPlayerStats();
+        if (mounted) setState(() {});
+      });
+    }
+
+    // Select: Open Theme Picker
+    if (GamepadService.instance.isActionJustPressed(GamepadAction.select)) {
+      _showThemePicker();
+    }
   }
 
   void _onThemeModeChanged() {
@@ -293,7 +370,40 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                         letterSpacing: isMobile ? 1.5 : 2.0 * scale,
                       ),
                     ),
-                    SizedBox(height: isMobile ? 16 : (28 * scale).roundToDouble()),
+                    SizedBox(height: isMobile ? 14 : (24 * scale).roundToDouble()),
+
+                    // Gamepad controller banner if connected
+                    ValueListenableBuilder<List<String>>(
+                      valueListenable: GamepadService.instance.connectedControllers,
+                      builder: (context, controllers, _) {
+                        if (controllers.isEmpty) return const SizedBox.shrink();
+                        return Container(
+                          margin: EdgeInsets.only(bottom: isMobile ? 10 : 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00FF88).withValues(alpha: _theme.isLight ? 0.12 : 0.18),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFF00FF88).withValues(alpha: 0.6)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.sports_esports, size: 16, color: Color(0xFF00FF88)),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${controllers.first} • (A) SELECT • (X) SKINS • (Y) RANKINGS',
+                                style: const TextStyle(
+                                  color: Color(0xFF00FF88),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
 
                     // Play Buttons
                     _buildPlayButton(
@@ -303,6 +413,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       color: _theme.paddle1Color,
                       scale: scale,
                       isMobile: isMobile,
+                      isFocused: GamepadService.instance.hasAnyController && _focusedButtonIndex == 0,
                       onTap: () => _startGame(GameMode.singlePlayer),
                     ),
                     SizedBox(height: isMobile ? 8 : (12 * scale).roundToDouble()),
@@ -314,6 +425,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       color: const Color(0xFF00FF88),
                       scale: scale,
                       isMobile: isMobile,
+                      isFocused: GamepadService.instance.hasAnyController && _focusedButtonIndex == 1,
                       onTap: () => _openOnlineMultiplayer(),
                     ),
                     SizedBox(height: isMobile ? 8 : (12 * scale).roundToDouble()),
@@ -325,6 +437,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       color: _theme.paddle2Color,
                       scale: scale,
                       isMobile: isMobile,
+                      isFocused: GamepadService.instance.hasAnyController && _focusedButtonIndex == 2,
                       onTap: () => _startGame(GameMode.twoPlayer),
                     ),
                     SizedBox(height: isMobile ? 8 : (12 * scale).roundToDouble()),
@@ -336,6 +449,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                       color: _theme.ballColor,
                       scale: scale,
                       isMobile: isMobile,
+                      isFocused: GamepadService.instance.hasAnyController && _focusedButtonIndex == 3,
                       onTap: () => _startGame(GameMode.practice),
                     ),
                     SizedBox(height: isMobile ? 14 : (24 * scale).roundToDouble()),
@@ -688,6 +802,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     required Color color,
     required double scale,
     required bool isMobile,
+    bool isFocused = false,
     required VoidCallback onTap,
   }) {
     final screenSize = MediaQuery.of(context).size;
@@ -703,15 +818,21 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
       width: btnWidth,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(isMobile ? 12 : 16 * scale),
-        boxShadow: _theme.hasGlow
-            ? [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.25),
-                  blurRadius: isMobile ? 8 : 14 * scale,
-                  offset: Offset(0, isMobile ? 2 : 4 * scale),
-                )
-              ]
-            : null,
+        border: isFocused ? Border.all(color: Colors.white, width: 2.2) : null,
+        boxShadow: [
+          if (isFocused)
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.7),
+              blurRadius: isMobile ? 10 : 16 * scale,
+              spreadRadius: 2,
+            ),
+          if (_theme.hasGlow)
+            BoxShadow(
+              color: color.withValues(alpha: isFocused ? 0.45 : 0.25),
+              blurRadius: isMobile ? 8 : 14 * scale,
+              offset: Offset(0, isMobile ? 2 : 4 * scale),
+            ),
+        ],
       ),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
@@ -732,14 +853,39 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: isMobile ? 13.5 : (16 * scale).roundToDouble(),
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0,
-                      color: btnTextColor,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: isMobile ? 13.5 : (16 * scale).roundToDouble(),
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.0,
+                            color: btnTextColor,
+                          ),
+                        ),
+                      ),
+                      if (isFocused) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: btnTextColor.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '(A)',
+                            style: TextStyle(
+                              color: btnTextColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   Text(
                     subtitle,

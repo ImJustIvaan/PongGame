@@ -9,6 +9,7 @@ import '../services/sound_service.dart';
 import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
 import '../services/online_match_service.dart';
+import '../services/gamepad_service.dart';
 import '../utils/user_utils.dart';
 import '../widgets/pong_canvas.dart';
 
@@ -188,6 +189,17 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     );
   }
 
+  void _restartGame() {
+    setState(() {
+      _engine.score1 = 0;
+      _engine.score2 = 0;
+      _engine.currentRally = 0;
+      _engine.winner = null;
+      _engine.state = GameState.ready;
+      _engine.resetServe(servingToPlayer: 1);
+    });
+  }
+
   void _onTick(Duration elapsed) {
     if (_lastTick == Duration.zero) {
       _lastTick = elapsed;
@@ -199,6 +211,27 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     // Safety clamp dt to avoid physics leaps on lag
     final safeDt = dt.clamp(0.0, 0.04);
     _elapsedTime += safeDt;
+
+    // Poll game controllers
+    GamepadService.instance.poll();
+
+    // Gamepad action button events
+    if (GamepadService.instance.isActionJustPressed(GamepadAction.actionA) ||
+        GamepadService.instance.isActionJustPressed(GamepadAction.bumperRight)) {
+      if (_engine.state == GameState.ready) {
+        _engine.startOrServe();
+      } else if (_engine.state == GameState.gameOver && widget.mode != GameMode.onlineMultiplayer) {
+        _restartGame();
+      }
+    }
+
+    if (GamepadService.instance.isActionJustPressed(GamepadAction.start)) {
+      _engine.togglePause();
+    }
+
+    if (GamepadService.instance.isActionJustPressed(GamepadAction.actionY) && _isOwner) {
+      _toggleOwnerAutoPlay();
+    }
 
     _handleKeyboardMovement(safeDt);
 
@@ -232,27 +265,33 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       _engine.update(safeDt);
     }
 
+    GamepadService.instance.afterFrame();
+
     if (mounted) {
       setState(() {});
     }
   }
 
   void _handleKeyboardMovement(double dt) {
+    const keySpeed = 1.0;
+
     if (_engine.ownerAutoPlay) {
       // In Owner Auto-Play mode, Paddle 1 is automatically piloted
       if (widget.mode == GameMode.twoPlayer) {
-        const keySpeed = 1.0;
         if (_pressedKeys.contains(LogicalKeyboardKey.arrowUp)) {
           _engine.movePaddleDelta(2, -keySpeed * dt);
         }
         if (_pressedKeys.contains(LogicalKeyboardKey.arrowDown)) {
           _engine.movePaddleDelta(2, keySpeed * dt);
         }
+        final gp2 = GamepadService.instance.getMovementY(player: 2);
+        if (gp2 != 0.0) {
+          _engine.movePaddleDelta(2, gp2 * keySpeed * dt);
+        }
       }
       return;
     }
 
-    const keySpeed = 1.0;
     // Player 1 controls: W / S or Up / Down (in 1P mode or if online Host)
     if (_pressedKeys.contains(LogicalKeyboardKey.keyW) ||
         ((widget.mode == GameMode.singlePlayer || (widget.mode == GameMode.onlineMultiplayer && widget.isOnlineHost)) &&
@@ -265,6 +304,12 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       _engine.movePaddleDelta(1, keySpeed * dt);
     }
 
+    // Player 1 Gamepad Movement
+    final gp1 = GamepadService.instance.getMovementY(player: 1);
+    if (gp1 != 0.0) {
+      _engine.movePaddleDelta(1, gp1 * keySpeed * dt);
+    }
+
     // Player 2 controls: Up / Down (in 2P mode or if online Guest)
     if (widget.mode == GameMode.twoPlayer) {
       if (_pressedKeys.contains(LogicalKeyboardKey.arrowUp)) {
@@ -273,6 +318,10 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       if (_pressedKeys.contains(LogicalKeyboardKey.arrowDown)) {
         _engine.movePaddleDelta(2, keySpeed * dt);
       }
+      final gp2 = GamepadService.instance.getMovementY(player: 2);
+      if (gp2 != 0.0) {
+        _engine.movePaddleDelta(2, gp2 * keySpeed * dt);
+      }
     } else if (widget.mode == GameMode.onlineMultiplayer && !widget.isOnlineHost) {
       if (_pressedKeys.contains(LogicalKeyboardKey.arrowUp) || _pressedKeys.contains(LogicalKeyboardKey.keyW)) {
         _engine.movePaddleDelta(2, -keySpeed * dt);
@@ -280,6 +329,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       }
       if (_pressedKeys.contains(LogicalKeyboardKey.arrowDown) || _pressedKeys.contains(LogicalKeyboardKey.keyS)) {
         _engine.movePaddleDelta(2, keySpeed * dt);
+        OnlineMatchService.instance.sendGuestPaddleMove(_engine.paddle2Y);
+      }
+      final gpGuest = GamepadService.instance.getMovementY(player: 1);
+      if (gpGuest != 0.0) {
+        _engine.movePaddleDelta(2, gpGuest * keySpeed * dt);
         OnlineMatchService.instance.sendGuestPaddleMove(_engine.paddle2Y);
       }
     }
@@ -341,16 +395,25 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         onKeyEvent: (event) {
           if (event is KeyDownEvent) {
             _pressedKeys.add(event.logicalKey);
-            if (event.logicalKey == LogicalKeyboardKey.space) {
+            if (event.logicalKey == LogicalKeyboardKey.space ||
+                event.logicalKey == LogicalKeyboardKey.gameButtonA ||
+                event.logicalKey == LogicalKeyboardKey.gameButtonRight1) {
               if (_engine.state == GameState.ready) {
                 _engine.startOrServe();
+              } else if (_engine.state == GameState.gameOver && widget.mode != GameMode.onlineMultiplayer) {
+                _restartGame();
               } else {
                 _engine.togglePause();
               }
-            } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+            } else if (event.logicalKey == LogicalKeyboardKey.escape ||
+                       event.logicalKey == LogicalKeyboardKey.gameButtonB) {
               Navigator.of(context).pop();
+            } else if (event.logicalKey == LogicalKeyboardKey.gameButtonStart ||
+                       event.logicalKey == LogicalKeyboardKey.keyP) {
+              _engine.togglePause();
             } else if (event.logicalKey == LogicalKeyboardKey.keyA ||
-                       event.logicalKey == LogicalKeyboardKey.keyO) {
+                       event.logicalKey == LogicalKeyboardKey.keyO ||
+                       event.logicalKey == LogicalKeyboardKey.gameButtonY) {
               if (_isOwner) {
                 _toggleOwnerAutoPlay();
               }
@@ -466,6 +529,46 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                     ),
                                   ),
                                 ),
+                              ValueListenableBuilder<List<String>>(
+                                valueListenable: GamepadService.instance.connectedControllers,
+                                builder: (context, controllers, _) {
+                                  if (controllers.isEmpty) return const SizedBox.shrink();
+                                  final isDual = controllers.length > 1;
+                                  return Container(
+                                    margin: EdgeInsets.only(right: isMobile ? 4 : 8),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: isMobile ? 6 : 8,
+                                      vertical: isMobile ? 4 : 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF00FF88).withValues(alpha: widget.theme.isLight ? 0.15 : 0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: const Color(0xFF00FF88).withValues(alpha: 0.6),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.sports_esports, size: 14, color: Color(0xFF00FF88)),
+                                        if (!isMobile) ...[
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            isDual ? 'GAMEPADS (2)' : 'GAMEPAD',
+                                            style: const TextStyle(
+                                              color: Color(0xFF00FF88),
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 0.8,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                               ValueListenableBuilder<bool>(
                                 valueListenable: FullscreenService.instance.isFullScreen,
                                 builder: (context, isFs, _) {
@@ -572,7 +675,9 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                       ),
                     ),
                     child: Text(
-                      'TAP SCREEN OR PRESS SPACE TO SERVE',
+                      GamepadService.instance.hasAnyController
+                          ? 'PRESS (A) OR SPACE TO SERVE'
+                          : 'TAP SCREEN OR PRESS SPACE TO SERVE',
                       style: TextStyle(
                         color: widget.theme.paddle1Color,
                         fontWeight: FontWeight.bold,
