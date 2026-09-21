@@ -482,19 +482,23 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                     ),
                                     decoration: BoxDecoration(
                                       color: _engine.ownerAutoPlay
-                                          ? const Color(0xFF00E5FF).withValues(alpha: 0.22)
+                                          ? (widget.theme.isLight
+                                              ? const Color(0xFF007799).withValues(alpha: 0.15)
+                                              : const Color(0xFF00E5FF).withValues(alpha: 0.22))
                                           : (widget.theme.isLight ? Colors.black.withValues(alpha: 0.08) : Colors.black54),
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
                                         color: _engine.ownerAutoPlay
-                                            ? const Color(0xFF00E5FF)
+                                            ? (widget.theme.isLight ? const Color(0xFF0088CC) : const Color(0xFF00E5FF))
                                             : (widget.theme.isLight ? Colors.black26 : Colors.white30),
                                         width: 1.2,
                                       ),
                                       boxShadow: _engine.ownerAutoPlay
                                           ? [
-                                              const BoxShadow(
-                                                color: Color(0x6600E5FF),
+                                              BoxShadow(
+                                                color: widget.theme.isLight
+                                                    ? const Color(0x330088CC)
+                                                    : const Color(0x6600E5FF),
                                                 blurRadius: 8,
                                                 spreadRadius: 1,
                                               ),
@@ -508,7 +512,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                           Icons.bolt,
                                           size: isMobile ? 14 : 15,
                                           color: _engine.ownerAutoPlay
-                                              ? const Color(0xFF00E5FF)
+                                              ? (widget.theme.isLight ? const Color(0xFF007799) : const Color(0xFF00E5FF))
                                               : (widget.theme.isLight ? Colors.black54 : Colors.white60),
                                         ),
                                         if (!isMobile) ...[
@@ -517,7 +521,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                             _engine.ownerAutoPlay ? 'AUTO ON' : 'AUTO OFF',
                                             style: TextStyle(
                                               color: _engine.ownerAutoPlay
-                                                  ? const Color(0xFF00E5FF)
+                                                  ? (widget.theme.isLight ? const Color(0xFF007799) : const Color(0xFF00E5FF))
                                                   : (widget.theme.isLight ? Colors.black87 : Colors.white70),
                                               fontSize: 11,
                                               fontWeight: FontWeight.bold,
@@ -532,39 +536,81 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                               ValueListenableBuilder<List<String>>(
                                 valueListenable: GamepadService.instance.connectedControllers,
                                 builder: (context, controllers, _) {
-                                  if (controllers.isEmpty) return const SizedBox.shrink();
+                                  final isConnected = controllers.isNotEmpty;
                                   final isDual = controllers.length > 1;
-                                  return Container(
-                                    margin: EdgeInsets.only(right: isMobile ? 4 : 8),
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: isMobile ? 6 : 8,
-                                      vertical: isMobile ? 4 : 5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF00FF88).withValues(alpha: widget.theme.isLight ? 0.15 : 0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: const Color(0xFF00FF88).withValues(alpha: 0.6),
-                                        width: 1,
+                                  final activeColor = widget.theme.isLight ? const Color(0xFF008844) : const Color(0xFF00FF88);
+                                  final inactiveColor = widget.theme.isLight ? Colors.black54 : Colors.white60;
+                                  final badgeColor = isConnected ? activeColor : inactiveColor;
+                                  final badgeBg = isConnected
+                                      ? (widget.theme.isLight ? const Color(0xFFE8F5E9) : const Color(0xFF00FF88).withValues(alpha: 0.18))
+                                      : (widget.theme.isLight ? Colors.black.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.08));
+                                  final borderColor = isConnected
+                                      ? activeColor.withValues(alpha: 0.7)
+                                      : (widget.theme.isLight ? Colors.black26 : Colors.white24);
+
+                                  return Tooltip(
+                                    message: isConnected
+                                        ? 'Gamepad connected (${controllers.first}). Analog stick/D-Pad controls paddle.'
+                                        : 'Controller supported. Connect and tap any button to activate.',
+                                    child: Container(
+                                      margin: EdgeInsets.only(right: isMobile ? 4 : 8),
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: isMobile ? 6 : 8,
+                                        vertical: isMobile ? 4 : 5,
                                       ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.sports_esports, size: 14, color: Color(0xFF00FF88)),
-                                        if (!isMobile) ...[
+                                      decoration: BoxDecoration(
+                                        color: badgeBg,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: borderColor,
+                                          width: 1.2,
+                                        ),
+                                        boxShadow: isConnected
+                                            ? [
+                                                BoxShadow(
+                                                  color: activeColor.withValues(alpha: widget.theme.isLight ? 0.2 : 0.4),
+                                                  blurRadius: 6,
+                                                ),
+                                              ]
+                                            : null,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.sports_esports, size: 14, color: badgeColor),
+                                          if (!isMobile) ...[
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              isConnected
+                                                  ? (isDual ? 'GAMEPADS (2)' : 'GAMEPAD')
+                                                  : 'GAMEPAD',
+                                              style: TextStyle(
+                                                color: badgeColor,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                letterSpacing: 0.8,
+                                              ),
+                                            ),
+                                          ],
                                           const SizedBox(width: 4),
-                                          Text(
-                                            isDual ? 'GAMEPADS (2)' : 'GAMEPAD',
-                                            style: const TextStyle(
-                                              color: Color(0xFF00FF88),
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 0.8,
+                                          Container(
+                                            width: 6,
+                                            height: 6,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: isConnected ? activeColor : (widget.theme.isLight ? Colors.black26 : Colors.white30),
+                                              boxShadow: isConnected
+                                                  ? [
+                                                      BoxShadow(
+                                                        color: activeColor.withValues(alpha: 0.6),
+                                                        blurRadius: 4,
+                                                      ),
+                                                    ]
+                                                  : null,
                                             ),
                                           ),
                                         ],
-                                      ],
+                                      ),
                                     ),
                                   );
                                 },
@@ -606,22 +652,30 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                           margin: const EdgeInsets.only(top: 6),
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
+                            color: widget.theme.isLight
+                                ? const Color(0xFF007799).withValues(alpha: 0.12)
+                                : const Color(0xFF00E5FF).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: const Color(0xFF00E5FF).withValues(alpha: 0.6),
+                              color: widget.theme.isLight
+                                  ? const Color(0xFF0088CC).withValues(alpha: 0.6)
+                                  : const Color(0xFF00E5FF).withValues(alpha: 0.6),
                               width: 1,
                             ),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.auto_awesome, size: 12, color: Color(0xFF00E5FF)),
-                              SizedBox(width: 5),
+                              Icon(
+                                Icons.auto_awesome,
+                                size: 12,
+                                color: widget.theme.isLight ? const Color(0xFF007799) : const Color(0xFF00E5FF),
+                              ),
+                              const SizedBox(width: 5),
                               Text(
                                 'OWNER AUTO-PLAY: AUTO SERVE & BLOCK (Press A)',
                                 style: TextStyle(
-                                  color: Color(0xFF00E5FF),
+                                  color: widget.theme.isLight ? const Color(0xFF007799) : const Color(0xFF00E5FF),
                                   fontSize: 10,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 1.1,
@@ -677,12 +731,13 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                     child: Text(
                       GamepadService.instance.hasAnyController
                           ? 'PRESS (A) OR SPACE TO SERVE'
-                          : 'TAP SCREEN OR PRESS SPACE TO SERVE',
+                          : 'PRESS SPACE OR TAP TO SERVE\n(🎮 Controller: Tap any button to activate)',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         color: widget.theme.paddle1Color,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5 * scale,
-                        fontSize: (14 * scale).roundToDouble(),
+                        letterSpacing: 1.2 * scale,
+                        fontSize: (isMobile ? 12 : 13.5 * scale).roundToDouble(),
                       ),
                     ),
                   ),

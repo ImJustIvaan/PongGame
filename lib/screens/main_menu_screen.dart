@@ -541,6 +541,77 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+
+                    SizedBox(height: isMobile ? 6 : 10),
+
+                    // Controller Status Indicator
+                    ValueListenableBuilder<List<String>>(
+                      valueListenable: GamepadService.instance.connectedControllers,
+                      builder: (context, controllers, _) {
+                        final isConnected = controllers.isNotEmpty;
+                        final activeColor = _theme.isLight ? const Color(0xFF008844) : const Color(0xFF00FF88);
+                        final inactiveColor = _theme.isLight ? Colors.black45 : Colors.white54;
+                        final primaryName = isConnected ? controllers.first : '';
+
+                        return Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 8 : 12,
+                            vertical: isMobile ? 3.5 : 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isConnected
+                                ? activeColor.withValues(alpha: _theme.isLight ? 0.12 : 0.18)
+                                : (_theme.isLight ? Colors.black.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.06)),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isConnected
+                                  ? activeColor.withValues(alpha: 0.6)
+                                  : (_theme.isLight ? Colors.black12 : Colors.white12),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.sports_esports,
+                                size: isMobile ? 13 : 15,
+                                color: isConnected ? activeColor : inactiveColor,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                isConnected
+                                    ? '🎮 $primaryName Connected (D-Pad & A)'
+                                    : '🎮 Controller Supported • Press any button to activate',
+                                style: TextStyle(
+                                  color: isConnected ? activeColor : inactiveColor,
+                                  fontSize: isMobile ? 10 : 11,
+                                  fontWeight: isConnected ? FontWeight.bold : FontWeight.w600,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isConnected ? activeColor : (_theme.isLight ? Colors.black26 : Colors.white30),
+                                  boxShadow: isConnected
+                                      ? [
+                                          BoxShadow(
+                                            color: activeColor.withValues(alpha: 0.6),
+                                            blurRadius: 4,
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
