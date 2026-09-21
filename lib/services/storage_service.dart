@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../game/game_theme.dart';
 import '../game/pong_engine.dart';
@@ -51,9 +52,11 @@ class StorageService {
   StorageService._();
 
   SharedPreferences? _prefs;
+  final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 
   Future<void> init() async {
     _prefs ??= await SharedPreferences.getInstance();
+    themeModeNotifier.value = getThemeMode();
   }
 
   int getHighScore() => _prefs?.getInt('high_score') ?? 0;
@@ -79,6 +82,27 @@ class StorageService {
 
   Future<void> saveTheme(PongThemeType theme) async {
     await _prefs?.setInt('theme_index', theme.index);
+  }
+
+  ThemeMode getThemeMode() {
+    final val = _prefs?.getString('theme_mode') ?? 'system';
+    switch (val) {
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      case 'system':
+      default:
+        return ThemeMode.system;
+    }
+  }
+
+  Future<void> saveThemeMode(ThemeMode mode) async {
+    themeModeNotifier.value = mode;
+    final val = mode == ThemeMode.light
+        ? 'light'
+        : (mode == ThemeMode.dark ? 'dark' : 'system');
+    await _prefs?.setString('theme_mode', val);
   }
 
   AiDifficulty getDifficulty() {

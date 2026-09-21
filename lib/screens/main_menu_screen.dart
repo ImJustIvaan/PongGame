@@ -46,6 +46,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     _targetScore = StorageService.instance.getTargetScore();
     _soundEnabled = StorageService.instance.getSoundEnabled();
     SoundService.instance.isMuted = !_soundEnabled;
+    StorageService.instance.themeModeNotifier.addListener(_onThemeModeChanged);
     _initAuthListener();
 
     // Attract mode background demo (AI vs AI playing)
@@ -62,8 +63,13 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     })..start();
   }
 
+  void _onThemeModeChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    StorageService.instance.themeModeNotifier.removeListener(_onThemeModeChanged);
     _authSub?.cancel();
     _attractTicker.dispose();
     super.dispose();
@@ -193,7 +199,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
     if (mounted) setState(() {});
   }
 
-  PongTheme get _theme => PongTheme.fromType(_selectedThemeType);
+  bool _resolveIsLight() {
+    final mode = StorageService.instance.getThemeMode();
+    if (mode == ThemeMode.light) return true;
+    if (mode == ThemeMode.dark) return false;
+    return MediaQuery.platformBrightnessOf(context) == Brightness.light;
+  }
+
+  ThemeMode get _themeMode => StorageService.instance.getThemeMode();
+
+  PongTheme get _theme => PongTheme.fromType(_selectedThemeType, isLight: _resolveIsLight());
 
   void _startGame(GameMode mode) async {
     await Navigator.of(context).push(
@@ -342,6 +357,22 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
                           scale: scale,
                           isMobile: isMobile,
                           onPressed: _showThemePicker,
+                        ),
+                        _buildIconButton(
+                          icon: _themeMode == ThemeMode.system
+                              ? Icons.brightness_auto
+                              : (_themeMode == ThemeMode.light ? Icons.light_mode : Icons.dark_mode),
+                          label: _themeMode == ThemeMode.system
+                              ? 'AUTO'
+                              : (_themeMode == ThemeMode.light ? 'LIGHT' : 'DARK'),
+                          scale: scale,
+                          isMobile: isMobile,
+                          onPressed: () {
+                            final next = _themeMode == ThemeMode.system
+                                ? ThemeMode.light
+                                : (_themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.system);
+                            StorageService.instance.saveThemeMode(next);
+                          },
                         ),
                         _buildIconButton(
                           icon: Icons.style,
@@ -855,54 +886,226 @@ class _MainMenuScreenState extends State<MainMenuScreen> with SingleTickerProvid
   void _showThemePicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _theme.isLight ? Colors.white : const Color(0xFF141524),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'SELECT THEME',
-                style: TextStyle(
-                  color: _theme.isLight ? Colors.black87 : Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            final isLight = _resolveIsLight();
+            final currentTheme = PongTheme.fromType(_selectedThemeType, isLight: isLight);
+            final currentMode = StorageService.instance.getThemeMode();
+
+            return Container(
+              decoration: BoxDecoration(
+                color: isLight ? Colors.white : const Color(0xFF141524),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(
+                  color: isLight ? Colors.black12 : Colors.white12,
+                  width: 1.5,
                 ),
               ),
-              const SizedBox(height: 16),
-              ...PongThemeType.values.map((type) {
-                final t = PongTheme.fromType(type);
-                final isSelected = _selectedThemeType == type;
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: t.paddle1Color,
-                    radius: 12,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'THEME & APPEARANCE',
+                        style: TextStyle(
+                          color: isLight ? Colors.black87 : Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close, color: isLight ? Colors.black54 : Colors.white60, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                      ),
+                    ],
                   ),
-                  title: Text(
-                    t.name,
-                    style: TextStyle(
-                      color: isSelected ? t.paddle1Color : (_theme.isLight ? Colors.black87 : Colors.white),
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  const SizedBox(height: 16),
+
+                  // Mode Toggle: SYSTEM / LIGHT / DARK
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: isLight ? const Color(0xFFF1F5F9) : const Color(0xFF0C0E1A),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: isLight ? Colors.black12 : Colors.white12),
+                    ),
+                    child: Row(
+                      children: [
+                        _buildThemeModeSegment(
+                          label: 'SYSTEM',
+                          icon: Icons.brightness_auto,
+                          isSelected: currentMode == ThemeMode.system,
+                          isLight: isLight,
+                          accentColor: currentTheme.paddle1Color,
+                          onTap: () async {
+                            await StorageService.instance.saveThemeMode(ThemeMode.system);
+                            setModalState(() {});
+                            setState(() {});
+                          },
+                        ),
+                        const SizedBox(width: 4),
+                        _buildThemeModeSegment(
+                          label: 'LIGHT',
+                          icon: Icons.light_mode,
+                          isSelected: currentMode == ThemeMode.light,
+                          isLight: isLight,
+                          accentColor: currentTheme.paddle1Color,
+                          onTap: () async {
+                            await StorageService.instance.saveThemeMode(ThemeMode.light);
+                            setModalState(() {});
+                            setState(() {});
+                          },
+                        ),
+                        const SizedBox(width: 4),
+                        _buildThemeModeSegment(
+                          label: 'DARK',
+                          icon: Icons.dark_mode,
+                          isSelected: currentMode == ThemeMode.dark,
+                          isLight: isLight,
+                          accentColor: currentTheme.paddle1Color,
+                          onTap: () async {
+                            await StorageService.instance.saveThemeMode(ThemeMode.dark);
+                            setModalState(() {});
+                            setState(() {});
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                  trailing: isSelected ? Icon(Icons.check, color: t.paddle1Color) : null,
-                  onTap: () {
-                    setState(() => _selectedThemeType = type);
-                    StorageService.instance.saveTheme(type);
-                    Navigator.of(ctx).pop();
-                  },
-                );
-              }),
-            ],
-          ),
+
+                  const SizedBox(height: 20),
+                  Text(
+                    'COLOR THEMES',
+                    style: TextStyle(
+                      color: isLight ? Colors.black54 : Colors.white54,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  ...PongThemeType.values.map((type) {
+                    final t = PongTheme.fromType(type, isLight: isLight);
+                    final isSelected = _selectedThemeType == type;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? t.paddle1Color.withValues(alpha: isLight ? 0.12 : 0.18)
+                            : (isLight ? const Color(0xFFF8FAFC) : const Color(0xFF1B1D30)),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected ? t.paddle1Color : (isLight ? Colors.black12 : Colors.white10),
+                          width: isSelected ? 1.8 : 1.0,
+                        ),
+                      ),
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                        leading: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: t.backgroundColor,
+                            border: Border.all(color: t.paddle1Color, width: 2),
+                          ),
+                          child: Center(
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: t.ballColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          t.name,
+                          style: TextStyle(
+                            color: isSelected ? t.paddle1Color : (isLight ? Colors.black87 : Colors.white),
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? Icon(Icons.check_circle, color: t.paddle1Color, size: 20)
+                            : null,
+                        onTap: () {
+                          setState(() => _selectedThemeType = type);
+                          StorageService.instance.saveTheme(type);
+                          setModalState(() {});
+                        },
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            );
+          },
         );
       },
+    );
+  }
+
+  Widget _buildThemeModeSegment({
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required bool isLight,
+    required Color accentColor,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? accentColor.withValues(alpha: isLight ? 0.2 : 0.25)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? accentColor : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 15,
+                color: isSelected ? accentColor : (isLight ? Colors.black54 : Colors.white54),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? accentColor : (isLight ? Colors.black87 : Colors.white70),
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

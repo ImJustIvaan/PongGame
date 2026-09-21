@@ -395,7 +395,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           IconButton(
-                            icon: Icon(Icons.arrow_back_ios_new, color: Colors.white70, size: isMobile ? 18 : 22),
+                            icon: Icon(
+                              Icons.arrow_back_ios_new,
+                              color: widget.theme.isLight ? Colors.black87 : Colors.white70,
+                              size: isMobile ? 18 : 22,
+                            ),
                             padding: EdgeInsets.all(isMobile ? 4 : 8),
                             constraints: isMobile ? const BoxConstraints() : null,
                             onPressed: () => Navigator.of(context).pop(),
@@ -416,12 +420,12 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                     decoration: BoxDecoration(
                                       color: _engine.ownerAutoPlay
                                           ? const Color(0xFF00E5FF).withValues(alpha: 0.22)
-                                          : Colors.black54,
+                                          : (widget.theme.isLight ? Colors.black.withValues(alpha: 0.08) : Colors.black54),
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
                                         color: _engine.ownerAutoPlay
                                             ? const Color(0xFF00E5FF)
-                                            : Colors.white30,
+                                            : (widget.theme.isLight ? Colors.black26 : Colors.white30),
                                         width: 1.2,
                                       ),
                                       boxShadow: _engine.ownerAutoPlay
@@ -442,7 +446,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                           size: isMobile ? 14 : 15,
                                           color: _engine.ownerAutoPlay
                                               ? const Color(0xFF00E5FF)
-                                              : Colors.white60,
+                                              : (widget.theme.isLight ? Colors.black54 : Colors.white60),
                                         ),
                                         if (!isMobile) ...[
                                           const SizedBox(width: 4),
@@ -451,7 +455,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                             style: TextStyle(
                                               color: _engine.ownerAutoPlay
                                                   ? const Color(0xFF00E5FF)
-                                                  : Colors.white70,
+                                                  : (widget.theme.isLight ? Colors.black87 : Colors.white70),
                                               fontSize: 11,
                                               fontWeight: FontWeight.bold,
                                               letterSpacing: 1.0,
@@ -471,7 +475,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                     constraints: isMobile ? const BoxConstraints() : null,
                                     icon: Icon(
                                       isFs ? Icons.fullscreen_exit : Icons.fullscreen,
-                                      color: Colors.white70,
+                                      color: widget.theme.isLight ? Colors.black87 : Colors.white70,
                                       size: isMobile ? 18 : 22,
                                     ),
                                     onPressed: () => FullscreenService.instance.toggle(),
@@ -483,7 +487,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                                 constraints: isMobile ? const BoxConstraints() : null,
                                 icon: Icon(
                                   _engine.state == GameState.paused ? Icons.play_arrow : Icons.pause,
-                                  color: Colors.white70,
+                                  color: widget.theme.isLight ? Colors.black87 : Colors.white70,
                                   size: isMobile ? 18 : 22,
                                 ),
                                 onPressed: () => _engine.togglePause(),
@@ -530,9 +534,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.black45,
+                            color: widget.theme.isLight ? Colors.white.withValues(alpha: 0.9) : Colors.black45,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: widget.theme.paddle1Color.withValues(alpha: 0.4)),
+                            border: Border.all(
+                              color: widget.theme.paddle1Color.withValues(alpha: widget.theme.isLight ? 0.6 : 0.4),
+                            ),
                           ),
                           child: Text(
                             'RALLY: ${_engine.currentRally}  (Speed: ${(_engine.speedMultiplier * 100).toInt()}%)',
@@ -559,9 +565,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                       vertical: (12 * scale).roundToDouble(),
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.7),
+                      color: widget.theme.isLight ? Colors.white.withValues(alpha: 0.95) : Colors.black.withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(16 * scale),
-                      border: Border.all(color: widget.theme.paddle1Color.withValues(alpha: 0.6)),
+                      border: Border.all(
+                        color: widget.theme.paddle1Color.withValues(alpha: widget.theme.isLight ? 0.8 : 0.6),
+                      ),
                     ),
                     child: Text(
                       'TAP SCREEN OR PRESS SPACE TO SERVE',
@@ -1001,9 +1009,11 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   ButtonStyle _outlineButtonStyle([double scale = 1.0]) {
+    final btnColor = widget.theme.isLight ? Colors.black87 : Colors.white;
+    final borderColor = widget.theme.isLight ? Colors.black26 : Colors.white38;
     return OutlinedButton.styleFrom(
-      foregroundColor: Colors.white,
-      side: const BorderSide(color: Colors.white38),
+      foregroundColor: btnColor,
+      side: BorderSide(color: borderColor),
       minimumSize: Size((220 * scale).roundToDouble(), (48 * scale).roundToDouble()),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12 * scale)),
       textStyle: TextStyle(

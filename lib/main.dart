@@ -47,14 +47,24 @@ class PongApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'The Pong Game!',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(useMaterial3: true).copyWith(
-        scaffoldBackgroundColor: const Color(0xFF090A15),
-        textTheme: GoogleFonts.robotoTextTheme(ThemeData.dark().textTheme),
-      ),
-      home: const MainMenuScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: StorageService.instance.themeModeNotifier,
+      builder: (context, themeMode, _) {
+        return MaterialApp(
+          title: 'The Pong Game!',
+          debugShowCheckedModeBanner: false,
+          themeMode: themeMode,
+          theme: ThemeData.light(useMaterial3: true).copyWith(
+            scaffoldBackgroundColor: const Color(0xFFF1F5F9),
+            textTheme: GoogleFonts.robotoTextTheme(ThemeData.light().textTheme),
+          ),
+          darkTheme: ThemeData.dark(useMaterial3: true).copyWith(
+            scaffoldBackgroundColor: const Color(0xFF090A15),
+            textTheme: GoogleFonts.robotoTextTheme(ThemeData.dark().textTheme),
+          ),
+          home: const MainMenuScreen(),
+        );
+      },
     );
   }
 }

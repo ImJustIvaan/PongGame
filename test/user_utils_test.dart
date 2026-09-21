@@ -22,13 +22,19 @@ void main() {
   });
 
   group('PongTheme Tests', () {
-    test('PongTheme.lightMode is defined with isLight == true', () {
-      final theme = PongTheme.fromType(PongThemeType.lightMode);
-      expect(theme.type, equals(PongThemeType.lightMode));
-      expect(theme.name, equals('Light Mode'));
-      expect(theme.isLight, isTrue);
-      expect(theme.hasGlow, isFalse);
-      expect(PongTheme.cyberNeon.isLight, isFalse);
+    test('All 4 themes support both dark and light modes with correct isLight value', () {
+      expect(PongThemeType.values.length, 4);
+
+      for (final type in PongThemeType.values) {
+        final darkTheme = PongTheme.fromType(type, isLight: false);
+        expect(darkTheme.type, equals(type));
+        expect(darkTheme.isLight, isFalse);
+
+        final lightTheme = PongTheme.fromType(type, isLight: true);
+        expect(lightTheme.type, equals(type));
+        expect(lightTheme.isLight, isTrue);
+        expect(lightTheme.backgroundColor, isNot(equals(darkTheme.backgroundColor)));
+      }
     });
   });
 }
