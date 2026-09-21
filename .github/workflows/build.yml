@@ -135,9 +135,9 @@ jobs:
           name: PongGame-Web-Release
           path: build/web
 
-  # 5. WINDOWS BUILD (Inno Setup Standalone Installer)
+  # 5. WINDOWS BUILD (Inno Setup Universal Installer - x64 & ARM64)
   build-windows:
-    name: Build Windows Installer
+    name: Build Windows Universal Installer (x64 & ARM64)
     needs: test
     runs-on: windows-latest
     steps:
@@ -164,12 +164,12 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
 
-      - name: Compile Inno Setup Installer
+      - name: Compile Inno Setup Universal Installer
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" windows/installer/pong_game_setup.iss
 
-      - name: Upload Windows Standalone Setup
+      - name: Upload Windows Universal Setup
         uses: actions/upload-artifact@v4
         with:
-          name: ThePongGame-Windows-Setup
+          name: ThePongGame-Windows-Universal-Setup
           path: build/windows/installer/ThePongGame-Setup.exe
